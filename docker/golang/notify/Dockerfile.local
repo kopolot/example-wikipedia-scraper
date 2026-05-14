@@ -1,0 +1,12 @@
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+RUN CGO_ENABLED=0 go install -ldflags "-s -w -extldflags '-static'" github.com/go-delve/delve/cmd/dlv@latest
+RUN apk add make
+RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+RUN go install github.com/air-verse/air@latest
+
+RUN apk add --no-cache tini
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["sleep", "infinity"]

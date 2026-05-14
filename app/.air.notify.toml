@@ -1,0 +1,12 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o bin/notify.bin ./cmd/notify/main.go"
+bin = "bin/notify.bin"
+full_bin = "bin/notify.bin"
+include_ext = ["go", "tpl", "tmpl", "html"]
+exclude_dir = ["tmp", "bin", "vendor"]
+
+[log]
+time = true

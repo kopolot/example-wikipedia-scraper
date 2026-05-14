@@ -1,0 +1,19 @@
+# Etap 1: Budowanie aplikacji
+FROM golang:1.25 AS builder
+
+WORKDIR /app
+
+COPY app/ .
+
+RUN go mod tidy
+RUN make notify
+
+# Etap 2: Minimalny obraz produkcyjny
+FROM alpine:latest
+
+WORKDIR /app
+
+COPY --from=builder /app/bin/notify.bin notify.bin
+RUN apk add libc6-compat
+
+ENTRYPOINT ["sh", "-c", "sleep 5 && ./notify.bin"]

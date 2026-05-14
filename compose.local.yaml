@@ -1,0 +1,55 @@
+services:
+  app:
+    image: golang:1.25-alpine
+    volumes:
+      - ./app:/app
+    ports:
+      - "52445:2345" # Port dla debuggera
+      - "52446:2346" # Port dla aplikacji
+    build:
+      context: .
+      dockerfile: ./docker/golang/api/Dockerfile.local
+    restart: always
+    security_opt:
+      - "apparmor:unconfined"
+    cap_add:
+      - SYS_PTRACE # Umożliwia użycie ptrace, co jest wymagane dla debuggera
+
+  # frontend:
+  #   image: node:lts-alpine
+  #   working_dir: /app
+  #   command: sh -c "npm install && npm run dev"
+  #   volumes:
+  #     - /usr/share/code/resources/app:/usr/share/code/resources/app:ro
+  #     - ./frontend:/app
+  #   ports:
+  #     - "3000:3000"
+  #     - "9229:9229" # Port dla debuggera Node.js
+
+  db:
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: user
+      POSTGRES_DB: db
+
+  nginx:
+    hostname: local.wiki-scraper.com
+    networks:
+      - app_network
+      - nginx-apache-reverse
+
+  mailhog:
+    image: mailhog/mailhog
+    hostname: mailhog
+    restart: always
+    networks:
+      - app_network
+
+  rabbitmq:
+    environment:
+      - RABBITMQ_DEFAULT_USER=user
+      - RABBITMQ_DEFAULT_PASS=password
+
+networks:
+  nginx-apache-reverse:
+    external: true

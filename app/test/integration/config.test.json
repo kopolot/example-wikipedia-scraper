@@ -1,0 +1,68 @@
+{
+    "api": {
+        "debug": true,
+        "jwt": {
+            "secret": "sadsaildsaldjsalsa",
+            "expiration_time": 86400
+        },
+        "port": "8080",
+        "server_host": "",
+        "public_host": "http://local.wiki-scraper.com/api/",
+        "public_frontend_host": "http://local.wiki-scraper.com/dashboard/"
+    },
+    "rabbitmq": {
+        "host": "rabbitmq",
+        "port": 5672,
+        "user": "test_user",
+        "password": "password",
+        "vhost": "test"
+    },
+    "db": {
+        "user": "user",
+        "password": "password",
+        "name": "test_db",
+        "host": "db",
+        "port": "5432",
+        "debug": true,
+        "cli_logging": true
+    },
+    "scraper_settings": {
+        "validate_pages_interval": 1800000,
+        "validate_pages_cooldown": 10000,
+        "failed_pages_cooldown": 30000,
+        "failed_pages_wait_time": 300000,
+        "debug": true,
+        "cli_logging": true
+    },
+    "sites_to_scrape": [
+        {
+            "name": "example",
+            "url": "https://example.com",
+            "enabled": true
+        }
+    ],
+    "browser_settings": {
+        "timeout": 60000,
+        "randomize_user_agent": true,
+        "engine_settings": {
+            "no-sandbox": true,
+            "disable-gpu": true,
+            "disable-software-rasterizer": true,
+            "headless": true,
+            "window-size": "1920,1080"
+        }
+    },
+    "mailer": {
+        "smtp_host": "mailhog",
+        "smtp_port": 1025,
+        "smtp_user": "",
+        "smtp_password": "",
+        "sender_email": "noreply@local.wiki-scraper.com",
+        "sender_name": "Wiki Scraper Newsletter",
+        "use_tls": false,
+        "debug": true
+    },
+    "notifier": {
+        "worker_count": 5
+    }
+}

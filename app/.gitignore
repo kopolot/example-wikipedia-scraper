@@ -1,0 +1,6 @@
+config.json
+go.sum
+*.bin
+__debug*
+*.prof
+debug.test*
