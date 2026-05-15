@@ -16,16 +16,19 @@ var (
 
 func NewScraperRegistry(browser interfaces.BrowserInterface, cfg config.ConfigInterface, loggerInstance interfaces.LoggerInterface) map[string]ScraperFactory {
 	initOnce.Do(func() {
-		// mappedSites := func(cfg config.ConfigInterface) map[string]*config.SiteConfig {
-		// 	sites := make(map[string]*config.SiteConfig)
-		// 	for _, siteConfig := range cfg.GetSitesConfig() {
-		// 		sites[siteConfig.Name] = siteConfig
-		// 	}
-		// 	return sites
-		// }(cfg)
+		mappedSites := func(cfg config.ConfigInterface) map[string]*config.SiteConfig {
+			sites := make(map[string]*config.SiteConfig)
+			for _, siteConfig := range cfg.GetSitesConfig() {
+				sites[siteConfig.Name] = siteConfig
+			}
+			return sites
+		}(cfg)
 		scraperRegistry = map[string]ScraperFactory{
 			"example": func(url string) interfaces.ScraperInterface {
 				return scrapers.NewExampleScraper(url)
+			},
+			"wikipedia.pl": func(url string) interfaces.ScraperInterface {
+				return scrapers.NewWikipediaPLScraper(url, browser, mappedSites["wikipedia.pl"], loggerInstance)
 			},
 		}
 	})

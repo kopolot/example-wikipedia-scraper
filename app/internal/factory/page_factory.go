@@ -36,6 +36,7 @@ func (f *PageFactory) CreateFromDTO(pageDTO *dto.PageDTO) (*model.Page, error) {
 		TextField1: pageDTO.TextField1,
 		TextField2: pageDTO.TextField2,
 		TextField3: pageDTO.TextField3,
+		ExternalID: pageDTO.ExternalID,
 	}
 	page.HashKey = GenerateHashKey(page)
 	return page, nil

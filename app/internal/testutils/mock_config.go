@@ -55,10 +55,6 @@ func (m *MockConfig) GetDBConfig() *config.DBConfig {
 	args := m.Called()
 	return args.Get(0).(*config.DBConfig)
 }
-func (m *MockConfig) GetPaymentMethodsConfig() []*config.PaymentMethodConfig {
-	args := m.Called()
-	return args.Get(0).([]*config.PaymentMethodConfig)
-}
 
 func (m *MockConfig) GetRabbitMQConfig() *config.RabbitMQConfig {
 	args := m.Called()

@@ -20,7 +20,6 @@ type ConfigInterface interface {
 	GetMailerConfig() *MailerConfig
 	GetNotifierConfig() *NotifierConfig
 	GetDBConfig() *DBConfig
-	GetPaymentMethodsConfig() []*PaymentMethodConfig
 	GetRabbitMQConfig() *RabbitMQConfig
 }
 
@@ -32,15 +31,14 @@ func (c *BrowserSettings) GetBrowserEngineSettings() map[string]any {
 }
 
 type Config struct {
-	SitesToScrape   []*SiteConfig          `json:"sites_to_scrape"`
-	DB              *DBConfig              `json:"db"`
-	BrowserSettings *BrowserSettings       `json:"browser_settings"`
-	ScraperSettings *ScraperSettings       `json:"scraper_settings"`
-	ApiConfig       *ApiConfig             `json:"api"`
-	MailerConfig    *MailerConfig          `json:"mailer"`
-	NotifierConfig  *NotifierConfig        `json:"notifier"`
-	PaymentMethods  []*PaymentMethodConfig `json:"payment_methods"`
-	RabbitMQConfig  *RabbitMQConfig        `json:"rabbitmq"`
+	SitesToScrape   []*SiteConfig    `json:"sites_to_scrape"`
+	DB              *DBConfig        `json:"db"`
+	BrowserSettings *BrowserSettings `json:"browser_settings"`
+	ScraperSettings *ScraperSettings `json:"scraper_settings"`
+	ApiConfig       *ApiConfig       `json:"api"`
+	MailerConfig    *MailerConfig    `json:"mailer"`
+	NotifierConfig  *NotifierConfig  `json:"notifier"`
+	RabbitMQConfig  *RabbitMQConfig  `json:"rabbitmq"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -131,10 +129,6 @@ func (c *Config) GetMailerConfig() *MailerConfig {
 
 func (c *Config) GetDBConfig() *DBConfig {
 	return c.DB
-}
-
-func (c *Config) GetPaymentMethodsConfig() []*PaymentMethodConfig {
-	return c.PaymentMethods
 }
 
 func (c *Config) GetRabbitMQConfig() *RabbitMQConfig {

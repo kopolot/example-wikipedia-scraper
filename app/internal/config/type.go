@@ -71,12 +71,6 @@ type DBConfig struct {
 	Debug      bool   `json:"debug"`
 	CliLogging bool   `json:"cli_logging"`
 }
-
-type PaymentMethodConfig struct {
-	Name    string `json:"name"`
-	Enabled bool   `json:"enabled"`
-}
-
 type RabbitMQConfig struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
