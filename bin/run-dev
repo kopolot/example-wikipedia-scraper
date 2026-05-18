@@ -1,2 +1,0 @@
-#!/bin/bash
-HOSTNAME=$1 docker compose -f compose.yaml -f compose.dev.yaml up -d --force-recreate --build
