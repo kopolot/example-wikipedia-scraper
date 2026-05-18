@@ -9,7 +9,6 @@ import (
 	"example-wikipedia-scraper/internal/model"
 	types "example-wikipedia-scraper/internal/types/scraper"
 	"fmt"
-	"time"
 
 	"github.com/chromedp/chromedp"
 )
@@ -54,19 +53,6 @@ func (s *WikipediaPLScraper) ScrapeSync(opts ...types.ScrapeOption) ([]model.Pag
 }
 
 func (s *WikipediaPLScraper) GetOfferDtoFromBrowserContext(pageCtx context.Context) (*dto.PageDTO, error) {
-	buttonSelector := "[data-testid=\"seller-phone-button\"]"
-	var buttonExists bool
-	err := chromedp.Run(pageCtx,
-		chromedp.EvaluateAsDevTools(`document.querySelector('`+buttonSelector+`') !== null`, &buttonExists),
-	)
-	if err == nil && buttonExists {
-		for range 2 {
-			chromedp.Run(pageCtx,
-				chromedp.WaitReady(buttonSelector, chromedp.ByQuery),
-				chromedp.Click(buttonSelector, chromedp.ByQuery, chromedp.NodeVisible),
-			)
-		}
-	}
 	var localPageData *dto.PageDTO
 	scriptContent, err := s.GetScriptFileContent("getPageDetails")
 	if err != nil {
@@ -74,7 +60,6 @@ func (s *WikipediaPLScraper) GetOfferDtoFromBrowserContext(pageCtx context.Conte
 	}
 	err = chromedp.Run(pageCtx,
 		chromedp.WaitReady("body", chromedp.ByQuery),
-		chromedp.Sleep(3*time.Second),
 		chromedp.Evaluate(
 			scriptContent,
 			&localPageData,
