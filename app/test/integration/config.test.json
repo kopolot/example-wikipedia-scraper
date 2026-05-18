@@ -7,8 +7,8 @@
         },
         "port": "8080",
         "server_host": "",
-        "public_host": "http://local.wiki-scraper.com/api/",
-        "public_frontend_host": "http://local.wiki-scraper.com/dashboard/"
+        "public_host": "http://localhost:8080/api/",
+        "public_frontend_host": "http://localhost:8080/dashboard/"
     },
     "rabbitmq": {
         "host": "rabbitmq",

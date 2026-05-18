@@ -61,6 +61,7 @@ func NewApi(config config.ConfigInterface, logger interfaces.LoggerInterface, au
 
 func (a *Api) LoadModules() {
 	a.loadUserApiModule()
+	a.loadPageApiModule()
 }
 
 func (a *Api) loadUserApiModule() {
@@ -69,6 +70,12 @@ func (a *Api) loadUserApiModule() {
 	userService := service.NewUserService(userRepo, mailerService, a.config)
 	userApiModule := NewUserApiModule(userRepo, userService, a)
 	a.LoadModule(userApiModule)
+}
+
+func (a *Api) loadPageApiModule() {
+	pageRepo := repository.NewPageRepository()
+	pageApiModule := NewPageApiModule(a, pageRepo)
+	a.LoadModule(pageApiModule)
 }
 
 func (a *Api) RegisterRoutes(routes []*types.Route, prefix string) {

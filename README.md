@@ -32,3 +32,4 @@ Usage:
 4. The scraper will start and begin scraping data from the specified Wikipedia pages.
 5. The scraped data will be stored in the PostgreSQL database for further analysis.
 6. Go to `http://localhost:8080/adminer/` to access the adminer with database and view the scraped data. Creditials: `user` `password` host `db`
+7. Go to `http://localhost:8080/mailhog/` to access the MailHog web interface to view the sent emails.
