@@ -26,14 +26,20 @@ func (m *PageApiModule) GetRoutes() []*types.Route {
 	return []*types.Route{
 		{
 			Method:  http.MethodGet,
-			Path:    "/pages",
+			Path:    "/list",
 			Handler: m.getPages,
+		},
+		{
+			Method:      "GET",
+			Path:        "/:id",
+			Handler:     m.getPageById,
+			Middlewares: []types.Middleware{m.api.AuthenticateMiddleware},
 		},
 	}
 }
 
 func (m *PageApiModule) GetRoutePrefix() string {
-	return "page"
+	return "page-records"
 }
 
 var allowedSortFields = map[string]string{
@@ -102,6 +108,37 @@ func (m *PageApiModule) getPages(request *types.ApiRequest) *types.ApiResponse {
 		Body: &types.ApiResponseBody{
 			Success: true,
 			Data:    map[string]any{"pageRecords": pageRecords, "maxPage": maxPage},
+		},
+	}
+}
+
+func (m *PageApiModule) getPageById(request *types.ApiRequest) *types.ApiResponse {
+	idStr := request.PathParams["id"]
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		return &types.ApiResponse{
+			StatusCode: http.StatusBadRequest,
+			Body: &types.ApiResponseBody{
+				Success: false,
+				Errors:  []types.ErrorDetail{{Message: "Invalid page record ID"}},
+			},
+		}
+	}
+	pageRecord, err := m.pageRepo.GetByID(uint(id))
+	if err != nil {
+		return &types.ApiResponse{
+			StatusCode: http.StatusNotFound,
+			Body: &types.ApiResponseBody{
+				Success: false,
+				Errors:  []types.ErrorDetail{{Message: "Page Record not found"}},
+			},
+		}
+	}
+	return &types.ApiResponse{
+		StatusCode: http.StatusOK,
+		Body: &types.ApiResponseBody{
+			Success: true,
+			Data:    pageRecord,
 		},
 	}
 }

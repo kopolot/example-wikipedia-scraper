@@ -38,12 +38,12 @@ services:
     networks:
       - app_network
 
-  # frontend:
-  #   image: node:lts-alpine
-  #   restart: always
-  #   networks:
-  #     - app_network
-  #   hostname: frontend
+  frontend:
+    image: node:lts-alpine
+    restart: always
+    networks:
+      - app_network
+    hostname: frontend
 
   rabbitmq:
     image: rabbitmq:4.2.4-management-alpine

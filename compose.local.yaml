@@ -15,14 +15,13 @@ services:
     cap_add:
       - SYS_PTRACE # Umożliwia użycie ptrace, co jest wymagane dla debuggera
 
-
-  # frontend:
-  #   image: node:lts-alpine
-  #   working_dir: /app
-  #   command: sh -c "npm install && npm run dev"
-  #   volumes:
-  #     - /usr/share/code/resources/app:/usr/share/code/resources/app:ro
-  #     - ./frontend:/app
-  #   ports:
-  #     - "3000:3000"
-  #     - "9229:9229" # Port dla debuggera Node.js
+  frontend:
+    image: node:lts-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    volumes:
+      - /usr/share/code/resources/app:/usr/share/code/resources/app:ro
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
+      - "9229:9229" # Port dla debuggera Node.js

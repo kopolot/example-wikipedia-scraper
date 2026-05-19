@@ -1,0 +1,38 @@
+{
+  "name": "nuxt-app",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "start": "nuxt start"
+  },
+  "dependencies": {
+    "@googlemaps/markerclusterer": "^2.6.2",
+    "@nuxt/eslint": "^1.9.0",
+    "@nuxt/image": "^1.11.0",
+    "@nuxt/scripts": "^0.12.1",
+    "@nuxt/ui": "^4.0.0",
+    "@nuxtjs/i18n": "^10.2.0",
+    "@unhead/vue": "^2.0.17",
+    "@vueuse/core": "^14.2.1",
+    "eslint": "^9.36.0",
+    "nuxt": "^4.1.2",
+    "nuxt-bootstrap-icons": "^3.3.3",
+    "typescript": "^5.9.2",
+    "usebootstrap": "^3.5.107",
+    "vue": "^3.5.22",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@nuxt/test-utils": "^3.20.1",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.0.8",
+    "playwright-core": "^1.56.1",
+    "sass-embedded": "^1.93.3",
+    "vitest": "^3.2.4"
+  }
+}
