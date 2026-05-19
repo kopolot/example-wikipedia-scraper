@@ -10,6 +10,7 @@ Technologies Used:
 - Chrome DevTools Protocol: The scraper uses the Chrome DevTools Protocol to interact with the web pages and extract data.
 - PostgreSQL: The scraper stores the scraped data in a PostgreSQL database for further analysis.
 - RabbitMQ: The scraper uses RabbitMQ for message queuing and task management.
+- Nuxt.js: The frontend of the application is built using Nuxt.js, which is a powerful and flexible framework for building server-side rendered applications with Vue.js.
 
 Features:
 - Scrapes data from Polish Wikipedia pages and stores it in a structured format.
@@ -18,7 +19,7 @@ Features:
 - Uses Chrome DevTools Protocol for efficient web scraping.
 - Stores scraped data in a PostgreSQL database for further analysis.
 - Uses RabbitMQ for message queuing and task management.
-
+- Nuxt.js: The frontend of the application is built using Nuxt.js, which is a powerful and flexible framework for building server-side rendered applications with Vue.js.
 
 Requirements:
 - Docker: The scraper requires Docker to be installed on the host machine in order to run the application.
@@ -31,5 +32,5 @@ Usage:
 3. Build and run the application using `bin/run` or `bin/run-local` scripts.
 4. The scraper will start and begin scraping data from the specified Wikipedia pages.
 5. The scraped data will be stored in the PostgreSQL database for further analysis.
-6. Go to `http://localhost:8080/adminer/` to access the adminer with database and view the scraped data. Creditials: `user` `password` host `db`
+6. Go to `http://localhost:8080/dashboard/` to access the frontend of the application built with Nuxt.js.
 7. Go to `http://localhost:8080/mailhog/` to access the MailHog web interface to view the sent emails.
