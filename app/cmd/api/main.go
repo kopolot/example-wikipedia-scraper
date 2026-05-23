@@ -16,7 +16,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not load config: %v", err)
 	}
-	logger.Init("api", logger.LevelInfo, false)
+	logger.Init("api", logger.LevelInfo, true)
 	loggerInstance := logger.GetLogger()
 	defer db.CloseDB()
 	if err := db.InitDB(cfg); err != nil {

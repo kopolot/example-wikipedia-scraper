@@ -74,13 +74,13 @@ func (s *ScraperService) Init() error {
 	return nil
 }
 
-func (s *ScraperService) RunScrapers() {
+func (s *ScraperService) RunScrapers(opts ...types.ScrapeOption) {
 	s.logger.Info("Starting scrapers...")
 	for siteName := range s.scraperMgr.GetAll() {
 		s.scrapingWg.Add(1)
 		go func(name string) {
 			defer s.scrapingWg.Done()
-			s.runScraper(name)
+			s.runScraper(name, opts...)
 		}(siteName)
 	}
 
@@ -89,14 +89,14 @@ func (s *ScraperService) RunScrapers() {
 	s.logger.Info("All scrapers finished")
 }
 
-func (s *ScraperService) RunScrapersInContinuousLoop() {
+func (s *ScraperService) RunScrapersInContinuousLoop(opts ...types.ScrapeOption) {
 	s.logger.Info("Starting scrapers in continuous loop...")
 	scraperRegistry := registry.NewScraperRegistry(s.browser, s.config, s.logger)
 
 	for siteName := range s.scraperMgr.GetAll() {
 		go func(name string) {
 			for {
-				s.runScraper(name)
+				s.runScraper(name, opts...)
 				s.scraperMgr.Reload(name, scraperRegistry)
 			}
 		}(siteName)

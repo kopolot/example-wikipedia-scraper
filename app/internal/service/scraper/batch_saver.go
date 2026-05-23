@@ -78,7 +78,7 @@ func (b *BatchSaver) setSamePageNotified(pages []*model.Page) {
 	}
 	hashKeys = slices.Compact(hashKeys)
 	existingHashKeys := make([]string, 0, len(hashKeys))
-	b.queryBuilder.Table("pages").Select("hash_key").Where("notified = true AND hash_key IN ?", helpers.ToStringSlice(hashKeys)).Find(&existingHashKeys)
+	b.queryBuilder.Model(&model.Page{}).Select("hash_key").Where("notified = true AND hash_key IN ?", helpers.ToStringSlice(hashKeys)).Find(&existingHashKeys)
 markNotified:
 	for _, page := range pages {
 		for _, existingKey := range existingHashKeys {

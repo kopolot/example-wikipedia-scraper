@@ -9,20 +9,22 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      wsUrl: 'ws://localhost',
-      apiBase: 'http://localhost:8080'
+      wsUrl: process.env.NUXT_PUBLIC_WS_URL || 'ws://localhost',
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080'
     }
   },
   modules: [
     '@nuxt/eslint',
     '@nuxt/image',
     '@nuxt/scripts',
-    '@nuxt/test-utils',
     '@nuxt/ui',
-    '@nuxt/test-utils/module',
     '@nuxtjs/i18n',
     'usebootstrap',
-    'nuxt-bootstrap-icons'
+    'nuxt-bootstrap-icons',
+    ...(process.env.NODE_ENV !== 'production' ? [
+      '@nuxt/test-utils',
+      '@nuxt/test-utils/module'
+    ] : [])
   ],
   i18n: {
     locales: [
