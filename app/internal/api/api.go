@@ -62,6 +62,7 @@ func NewApi(config config.ConfigInterface, logger interfaces.LoggerInterface, au
 func (a *Api) LoadModules() {
 	a.loadUserApiModule()
 	a.loadPageApiModule()
+	a.loadUserWantedFiltersApiModule()
 }
 
 func (a *Api) loadUserApiModule() {
@@ -76,6 +77,14 @@ func (a *Api) loadPageApiModule() {
 	pageRepo := repository.NewPageRepository()
 	pageApiModule := NewPageApiModule(a, pageRepo)
 	a.LoadModule(pageApiModule)
+}
+
+func (a *Api) loadUserWantedFiltersApiModule() {
+	userWantedPagesFilterRepo := repository.NewUserWantedPagesFilterRepository()
+	pageRepo := repository.NewPageRepository()
+	pageFilterService := service.NewPageFilterService(userWantedPagesFilterRepo, pageRepo)
+	userWantedFiltersApiModule := NewUserWantedFiltersApiModule(a, userWantedPagesFilterRepo, pageFilterService)
+	a.LoadModule(userWantedFiltersApiModule)
 }
 
 func (a *Api) RegisterRoutes(routes []*types.Route, prefix string) {
