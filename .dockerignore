@@ -1,0 +1,21 @@
+# Dependencies and build artifacts
+**/node_modules
+**/.nuxt
+**/.output
+**/tmp
+**/var/log
+**/*.bin
+
+# Git and editor
+.git
+.gitignore
+**/.cursor
+
+# Local config (baked from config.example.json in images)
+app/config.json
+frontend/.env
+
+# Tests
+app/test
+frontend/**/*.test.ts
+frontend/**/*.spec.ts

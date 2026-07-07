@@ -1,4 +1,4 @@
-.PHONY: build scraper api clean notify
+.PHONY: build scraper api clean notify migrate
 
 build: scraper api notify
 
@@ -10,6 +10,9 @@ api:
 
 notify:
 	go build -o bin/notify.bin ./cmd/notify/main.go
+
+migrate:
+	go build -o bin/migrate.bin ./cmd/migrate/main.go
 
 clean:
 	rm -f bin/*.bin

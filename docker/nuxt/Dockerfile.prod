@@ -1,19 +1,29 @@
-FROM node:lts-alpine as builder
+FROM node:lts-alpine AS builder
 
 WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json* ./
+
+RUN npm install
 
 COPY frontend/ .
 
-RUN npm install
+ARG NUXT_PUBLIC_API_BASE=http://localhost:8080/api
+ENV NUXT_PUBLIC_API_BASE=$NUXT_PUBLIC_API_BASE
+ENV NODE_ENV=production
+
 RUN npm run build
 
 FROM node:lts-alpine
+
 WORKDIR /app
 
-COPY --from=builder /app/.output ./output
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.nuxt ./.nuxt
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
 
+COPY --from=builder /app/.output ./.output
 
-# ENTRYPOINT [ "npm", "start" ]
-ENTRYPOINT ["sleep", "infinity"]
+EXPOSE 3000
+
+CMD ["node", ".output/server/index.mjs"]
