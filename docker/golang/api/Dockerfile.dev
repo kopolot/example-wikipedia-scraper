@@ -1,7 +1,0 @@
-FROM golang:1.25-alpine AS builder
-
-WORKDIR /app
-
-RUN go install github.com/air-verse/air@latest
-
-ENTRYPOINT ["bin/hotreload_api.sh"]

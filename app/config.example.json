@@ -32,7 +32,7 @@
         "failed_pages_cooldown": 30000,
         "failed_pages_wait_time": 300000,
         "debug": true,
-        "cli_logging": false
+        "cli_logging": true
     },
     "sites_to_scrape": [
         {

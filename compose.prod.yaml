@@ -1,3 +1,11 @@
+x-go-common: &x-go-common
+  volumes:
+    - ./app/resources:/app/resources
+    - ./app/var:/app/var
+    - ./app/config.json:/app/config.json
+  networks:
+    - app_network
+
 services:
   db:
     healthcheck:
@@ -16,6 +24,7 @@ services:
       start_period: 10s
 
   migrate:
+    <<: *x-go-common
     build:
       context: .
       dockerfile: ./docker/golang/migrate/Dockerfile.prod
@@ -23,10 +32,14 @@ services:
       db:
         condition: service_healthy
     restart: "no"
-    networks:
-      - app_network
+    volumes:
+      - ./app/resources:/app/resources
+      - ./app/var:/app/var
+      - ./app/config.json:/app/config.json
+      - ./app/migrations:/app/migrations
 
   app:
+    <<: *x-go-common
     build:
       context: .
       dockerfile: ./docker/golang/api/Dockerfile.prod
@@ -38,10 +51,9 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: always
-    networks:
-      - app_network
 
   scraper:
+    <<: *x-go-common
     build:
       context: .
       dockerfile: ./docker/golang/scraper/Dockerfile.prod
@@ -54,8 +66,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
     shm_size: "1gb"
-    networks:
-      - app_network
 
   frontend:
     image: workspace-frontend
