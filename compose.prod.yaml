@@ -1,6 +1,6 @@
 x-go-common: &x-go-common
   volumes:
-    - ./app/resources:/app/resources
+    - ./app/resource:/app/resource
     - ./app/var:/app/var
     - ./app/config.json:/app/config.json
   networks:
@@ -33,7 +33,7 @@ services:
         condition: service_healthy
     restart: "no"
     volumes:
-      - ./app/resources:/app/resources
+      - ./app/resource:/app/resource
       - ./app/var:/app/var
       - ./app/config.json:/app/config.json
       - ./app/migrations:/app/migrations

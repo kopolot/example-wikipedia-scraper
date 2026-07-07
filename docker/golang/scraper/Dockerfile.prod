@@ -11,10 +11,23 @@ FROM alpine:latest
 
 WORKDIR /app
 
-RUN apk add --no-cache chromium libc6-compat netcat-openbsd
+RUN apk add --no-cache \
+    chromium \
+    libc6-compat \
+    netcat-openbsd \
+    dbus-libs \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
+    xvfb \
+    xauth
+
+ENV CHROME_BIN=/usr/bin/chromium-browser
 
 COPY --from=builder /app/bin/scraper.bin scraper.bin
 COPY --from=builder /app/go.mod go.mod
+COPY app/resource ./resource
 COPY docker/scripts/wait-for-postgres.sh wait-for-postgres.sh
 COPY docker/scripts/entrypoint-scraper.sh entrypoint.sh
 

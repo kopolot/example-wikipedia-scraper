@@ -1,8 +1,8 @@
 (() => {
     const elements = document.querySelectorAll('.mw-search-result')
     const searchParams = new URLSearchParams(window.location.search)
-    const limit = +searchParams.get("limit")
-    const page = (+searchParams.get('offset') / limit) + 1
+    const limit = +searchParams.get("limit") || 100
+    const page = Math.floor((+searchParams.get('offset') || 0) / limit) + 1
     const Pages = [];
     elements.forEach((v, i) => {
         const heading = v.querySelector('.mw-search-result-heading >  a')
