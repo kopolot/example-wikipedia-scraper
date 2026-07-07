@@ -123,14 +123,7 @@ func (fpp *FailedPageProcessor) handleRetryFailedPage(task *queue.Task) {
 		return
 	}
 
-	ctx, cancel, err := fpp.browser.GetNewContext()
-	if err != nil {
-		fpp.logger.Error("Error creating browser context", "url", pageUrl, "err", err)
-		panic(err)
-	}
-	defer cancel()
-
-	pageDTO, err := scraper.ScrapePageData(pageUrl, ctx)
+	pageDTO, err := scraper.ScrapePageData(pageUrl)
 	if err != nil {
 		// Obsłuż błędy
 		if errors.Is(err, types.ErrRatelimit) {

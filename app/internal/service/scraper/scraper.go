@@ -12,6 +12,7 @@ import (
 	repositoryInterace "example-wikipedia-scraper/internal/interfaces/repository"
 	"example-wikipedia-scraper/internal/registry"
 	"example-wikipedia-scraper/internal/service/browser"
+	"example-wikipedia-scraper/internal/service/scraper/scrapers"
 	types "example-wikipedia-scraper/internal/types/scraper"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ type ScraperService struct {
 	failedPageProcessor *FailedPageProcessor
 	pageValidator       *PageValidator
 	scrapingWg          sync.WaitGroup
+	stopChan            chan struct{}
 }
 
 func NewScraperService(
@@ -53,6 +55,7 @@ func NewScraperService(
 		queueProcessor:      queueProcessor,
 		failedPageProcessor: failedPageProcessor,
 		pageValidator:       pageValidator,
+		stopChan:            make(chan struct{}),
 	}
 }
 
@@ -66,6 +69,7 @@ func (s *ScraperService) Init() error {
 	}
 
 	s.scraperMgr.RegisterScrapers(scraperRegistry)
+	scrapers.SetSiteHealth(s.scraperMgr.GetSiteHealth())
 	s.failedPageProcessor.browser = s.browser
 	s.failedPageProcessor.RegisterHandlers()
 
@@ -96,6 +100,9 @@ func (s *ScraperService) RunScrapersInContinuousLoop(opts ...types.ScrapeOption)
 	for siteName := range s.scraperMgr.GetAll() {
 		go func(name string) {
 			for {
+				if s.scraperMgr.GetSiteHealth().IsCircuitOpen(name) {
+					s.scraperMgr.GetSiteHealth().BeforeAttempt(name)
+				}
 				s.runScraper(name, opts...)
 				s.scraperMgr.Reload(name, scraperRegistry)
 			}
@@ -130,7 +137,8 @@ func (s *ScraperService) runScraper(siteName string, opts ...types.ScrapeOption)
 		FailedPages: failedPagesChan,
 	}
 
-	scraper.ScrapeAsync(channels, opts...)
+	scraper.InitScraper(opts...)
+	scraper.ScrapeAsync(channels)
 }
 
 func (s *ScraperService) ValidateAndUpdatePages(ctx context.Context) {
@@ -143,6 +151,8 @@ func (s *ScraperService) ValidateAndUpdatePages(ctx context.Context) {
 
 	for {
 		select {
+		case <-s.stopChan:
+			return
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
@@ -176,6 +186,7 @@ func (s *ScraperService) validatePageBatch(cooldown time.Duration) {
 
 func (s *ScraperService) Shutdown() {
 	s.logger.Info("Shutting down scraper service")
+	close(s.stopChan)
 	s.queueProcessor.Stop()
 	if s.browser != nil {
 		s.browser.Close()

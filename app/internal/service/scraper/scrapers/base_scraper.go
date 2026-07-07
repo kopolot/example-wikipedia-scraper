@@ -1,16 +1,17 @@
 package scrapers
 
 import (
-	"context"
-	"errors"
 	"example-wikipedia-scraper/internal/config"
 	"example-wikipedia-scraper/internal/dto"
 	"example-wikipedia-scraper/internal/interfaces"
 	"example-wikipedia-scraper/internal/logger"
 	"example-wikipedia-scraper/internal/model"
+	"example-wikipedia-scraper/internal/service/browser"
 	browserTypes "example-wikipedia-scraper/internal/types/browser"
 	types "example-wikipedia-scraper/internal/types/scraper"
 	"example-wikipedia-scraper/pkg/helpers"
+	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -31,24 +32,25 @@ type ListPageResponse struct {
 type ListPageData struct {
 	URL        string `json:"URL"`
 	ExternalID string `json:"externalID"`
-	No         int16  `json:"no"`
-	Page       int8   `json:"page"`
+	No         int    `json:"no"`
+	Page       int    `json:"page"`
 }
 
 type BaseScraper struct {
-	lastPageId            string
-	newLastPageId         string
+	lastPageId           string
+	newLastPageId        string
 	listUnformatedBaseUrl string
 	browser               interfaces.BrowserInterface
 	logger                interfaces.LoggerInterface
 	config                *config.SiteConfig
-	pagesProcessed        int
+	pagesProcessed       int
 	scriptsCache          map[string]string
 	browserOptions        *browserTypes.FetchOptions
-	listPageDtoChan       chan *ListPageData
-	pageDtoChanCloseMutex sync.Mutex
+	scrapeOptions         *types.ScrapeOptions
+	listPageDtoChan        chan *ListPageData
+	pageDtoChanCloseMutex  sync.Mutex
 	fetchMutex            sync.Mutex
-	pageDtoChanClosed     bool
+	pageDtoChanClosed      bool
 	scriptsCacheMutex     sync.Mutex
 }
 
@@ -76,10 +78,10 @@ func (s *BaseScraper) GetScriptFileContent(fileName string) (string, error) {
 	if content, found := s.scriptsCache[fileName]; found {
 		return content, nil
 	}
-	filePath := filepath.Join(helpers.GetCurrentFilePath(), "..", "..", "..", "..", "resource", "scraper", "js", scrapername, fileName+".js")
+	filePath := helpers.GetAbsoluteFilePath(filepath.Join("..", "..", "..", "..", "resource", "scraper", "js", scrapername, fileName+".js"))
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return "", s.logAndReturnError("error reading script file", scrapername, "file", fileName, "err", err)
+		return "", s.logAndReturnError("error reading script file", scrapername, "file", fileName, "err", err, "filePath", filePath)
 	}
 	s.scriptsCache[fileName] = string(content)
 	return string(content), nil
@@ -114,6 +116,17 @@ func (s *BaseScraper) SetBrowserOptions(opts ...browserTypes.FetchOption) {
 	}
 }
 
+func (s *BaseScraper) SetScrapeOptions(opts ...types.ScrapeOption) {
+	s.scrapeOptions = types.ApplyOptions(opts...)
+}
+
+func (s *BaseScraper) GetScrapeOptions() *types.ScrapeOptions {
+	if s.scrapeOptions == nil {
+		s.scrapeOptions = &types.ScrapeOptions{}
+	}
+	return s.scrapeOptions
+}
+
 func (s *BaseScraper) InitBrowserOptions() {
 	if s.browserOptions == nil {
 		browserOptions := s.browser.GetOptions()
@@ -121,8 +134,14 @@ func (s *BaseScraper) InitBrowserOptions() {
 	}
 }
 
-func (s *BaseScraper) InitListScraperWorker(opts ...types.ScrapeOption) error {
-	options := types.ApplyOptions(opts...)
+func (s *BaseScraper) InitScraper(opts ...types.ScrapeOption) error {
+	s.SetScrapeOptions(opts...)
+	// return s.buildBrowserOptions()
+	return nil
+}
+
+func (s *BaseScraper) buildBrowserOptions() error {
+	options := s.GetScrapeOptions()
 	timeout := options.Timeout
 	if timeout == 0 {
 		t := s.getBrowserOptions().Timeout
@@ -137,17 +156,12 @@ func (s *BaseScraper) InitListScraperWorker(opts ...types.ScrapeOption) error {
 	return nil
 }
 
-func (s *BaseScraper) StartListScraperWorker(opts ...types.ScrapeOption) error {
+func (s *BaseScraper) StartListScraperWorker() error {
 	siteConfig := s.GetConfig()
 	pageCount := siteConfig.PagesBack
-	browserCtx, cancel, err := s.browser.GetNewContext()
-	if err != nil {
-		return s.logAndReturnError("error creating new browser context", siteConfig.Name, "err", err)
-	}
-	defer cancel()
 loop:
 	for page := 1; page <= pageCount; page++ {
-		if s.processListScraperPageReturnBreakLoop(page, browserCtx, opts...) {
+		if s.processListScraperPageReturnBreakLoop(page) {
 			break loop
 		}
 	}
@@ -157,66 +171,88 @@ loop:
 	return nil
 }
 
-func (s *BaseScraper) processListScraperPageReturnBreakLoop(page int, browserCtx context.Context, opts ...types.ScrapeOption) bool {
+func (s *BaseScraper) processListScraperPageReturnBreakLoop(page int) bool {
 	siteConfig := s.GetConfig()
+	siteName := siteConfig.Name
+	waitBeforeScrapeAttempt(siteName)
+
 	workerConfig := s.GetWorkerConfig("main")
 	pageCount := siteConfig.PagesBack
-	err := s.ScrapeListPage(page, browserCtx, opts...)
+	err := s.ScrapeListPage(page)
 	pageUrl := fmt.Sprintf(s.listUnformatedBaseUrl, page)
 	switch err {
 	case nil:
+		recordScrapeSuccess(siteName)
 		if page < pageCount {
 			s.StartCooldown(workerConfig.Cooldown)
 		}
 	case types.ErrTargetServer:
-		s.log(logger.LevelWarn, "Target server error encountered, retrying later", siteConfig.Name, "page", pageUrl, "err", err, "options", opts)
+		if backoff := recordScrapeFailure(siteName, err); backoff > 0 {
+			time.Sleep(backoff)
+		}
+		if shouldLogScrapeError(siteName) {
+			s.log(logger.LevelWarn, "Target server error encountered, retrying later", siteName, "page", pageUrl, "err", err, "options", s.GetScrapeOptions())
+		}
 	case types.ErrLastPageReached:
-		s.log(logger.LevelInfo, "Last page reached on page, stop scraping", siteConfig.Name, "page", pageUrl, "options", opts)
+		recordScrapeSuccess(siteName)
+		s.log(logger.LevelDebug, "Last page reached on page, stop scraping", siteName, "page", pageUrl, "options", s.GetScrapeOptions())
 		return true
 	default:
-		s.log(logger.LevelError, "Error scraping list page", siteConfig.Name, "page", pageUrl, "err", err, "options", opts)
+		if backoff := recordScrapeFailure(siteName, err); backoff > 0 {
+			time.Sleep(backoff)
+		}
+		if shouldLogScrapeError(siteName) {
+			s.log(logger.LevelError, "Error scraping list page", siteName, "page", pageUrl, "err", err, "options", s.GetScrapeOptions())
+		}
 	}
 	return false
 }
 
-func (s *BaseScraper) ScrapeListPage(page int, browserCtx context.Context, opts ...types.ScrapeOption) error {
-	options := types.ApplyOptions(opts...)
+func (s *BaseScraper) ScrapeListPage(page int) error {
 	if s.pageDtoChanClosed {
 		return nil
 	}
 	pageUrl := fmt.Sprintf(s.listUnformatedBaseUrl, page)
-	err := s.FetchPageListDataAndSendToDtoToChannel(pageUrl, browserCtx, *options)
+	err := s.FetchPageListDataAndSendToDtoToChannel(pageUrl)
 	return err
 }
 
-func (s *BaseScraper) FetchPageListDataAndSendToDtoToChannel(url string, ctx context.Context, options types.ScrapeOptions) error {
-	listPageResponse, err := s.FetchPageListData(url, ctx)
+func (s *BaseScraper) FetchPageListDataAndSendToDtoToChannel(url string) error {
+	listPageResponse, err := s.FetchPageListData(url)
 	if err != nil {
 		return err
 	}
-	return s.SendListPagesToChannel(listPageResponse.Pages, options)
+	return s.SendListPagesToChannel(listPageResponse.Pages)
 }
 
-func (s *BaseScraper) FetchPageListData(url string, ctx context.Context) (ListPageResponse, error) {
+func (s *BaseScraper) FetchPageListData(url string) (ListPageResponse, error) {
 	var listPageResponse ListPageResponse
 	if s.pageDtoChanClosed {
 		return listPageResponse, nil
 	}
-	browserResponse, err := s.fetchPageWithRetry(ctx, url)
+	ctx, cancel, err := s.browser.GetNewContext()
+	if err != nil {
+		return listPageResponse, s.logAndReturnError("error creating browser context for page list data", s.GetName(), "url", url, "error", err)
+	}
+	defer cancel()
+	browserSession := browser.NewBrowserSession(ctx, cancel)
+	browserSession.SetURL(url)
+	err = s.fetchPageWithRetry(browserSession)
 	if err != nil {
 		return listPageResponse, s.translateBrowserError(err)
 	}
-	return s.GetDataFromList(browserResponse.GetContext())
+	return s.GetDataFromList(browserSession.GetContext())
 }
 
-func (s *BaseScraper) SendListPagesToChannel(pages []*ListPageData, options types.ScrapeOptions) error {
+func (s *BaseScraper) SendListPagesToChannel(pages []*ListPageData) error {
 	siteConfig := s.GetConfig()
+	options := s.GetScrapeOptions()
 	for _, page := range pages {
 		if s.pageDtoChanClosed {
 			return nil
 		}
 		if lastPageId, _ := s.GetLastPageId(siteConfig.Name); lastPageId != "" && page.ExternalID == lastPageId {
-			s.log(logger.LevelInfo, "Last page reached, stopping scraping", siteConfig.Name, "pageURL", page.URL)
+			s.log(logger.LevelDebug, "Last page reached, stopping scraping", siteConfig.Name, "pageURL", page.URL)
 			return types.ErrLastPageReached
 		}
 		if options.MaxItems <= 0 || s.pagesProcessed < options.MaxItems {
@@ -233,17 +269,20 @@ func (s *BaseScraper) SendListPagesToChannel(pages []*ListPageData, options type
 	return nil
 }
 
+func (s *BaseScraper) RunChromedp(ctx context.Context, actions ...chromedp.Action) error {
+	return s.browser.RunActions(ctx, actions...)
+}
+
 func (s *BaseScraper) GetDataFromList(requestCtx context.Context) (ListPageResponse, error) {
-	// tu nie powiino byc chromedp
 	scriptContent, err := s.GetScriptFileContent("listPage")
 	var listPageResponse ListPageResponse
 	if err != nil {
 		return listPageResponse, s.logAndReturnError("error getting script content", s.GetConfig().Name, "err", err)
 	}
-	chromedp.Run(requestCtx,
+	s.RunChromedp(requestCtx,
 		chromedp.WaitReady("body", chromedp.ByQuery),
 		chromedp.Sleep(2*time.Second))
-	err = chromedp.Run(requestCtx, chromedp.Evaluate(
+	err = s.RunChromedp(requestCtx, chromedp.Evaluate(
 		scriptContent,
 		&listPageResponse,
 	))
@@ -253,7 +292,7 @@ func (s *BaseScraper) GetDataFromList(requestCtx context.Context) (ListPageRespo
 	return listPageResponse, nil
 }
 
-func (s *BaseScraper) ScrapeFullDataFromPagesAndSendToChan(channels *types.ScrapeChannels, scrapePageCallback func(string, context.Context) (*dto.PageDTO, error)) error {
+func (s *BaseScraper) ScrapeFullDataFromPagesAndSendToChan(channels *types.ScrapeChannels, scrapePageCallback func(string) (*dto.PageDTO, error)) error {
 	pageQueue := channels.PageQueue
 	workerConfig := s.GetWorkerConfig("details")
 	siteConfig := s.GetConfig()
@@ -273,14 +312,12 @@ func (s *BaseScraper) ScrapeFullDataFromPagesAndSendToChan(channels *types.Scrap
 				if !ok {
 					break
 				}
-				pageCtx, cancel, err := s.browser.GetNewContext()
-				if err != nil {
-					s.log(logger.LevelError, "Error creating new context for page details", siteConfig.Name, "err", err)
-					return
-				}
 				s.log(logger.LevelDebug, "Processing page", siteConfig.Name, "pageURL", pageData.URL)
-				pageDto, err := scrapePageCallback(pageData.URL, pageCtx)
-				// jeśli 404 to chyba jebac i nie daje do failed pages
+				if pageData.URL == "" {
+					s.log(logger.LevelError, "Empty page URL, skipping", siteConfig.Name, "pageURL", pageData.URL)
+					continue
+				}
+				pageDto, err := scrapePageCallback(pageData.URL)
 				if err != nil {
 					channels.FailedPages <- &dto.UnprocessedPageDTO{
 						URL:      pageData.URL,
@@ -293,7 +330,6 @@ func (s *BaseScraper) ScrapeFullDataFromPagesAndSendToChan(channels *types.Scrap
 					pageQueue <- pageDto
 				}
 				s.StartCooldown(workerConfig.Cooldown)
-				cancel()
 			}
 		}()
 	}
@@ -335,10 +371,13 @@ func (s *BaseScraper) ValidatePageBase(page *model.Page, callback func(context.C
 	}
 	defer cancel()
 	pageURL := page.URL
-	browserSession, err := s.fetchPageWithRetry(pageCtx, pageURL)
+	browserSession := browser.NewBrowserSession(pageCtx, cancel)
+	browserSession.SetURL(pageURL)
+	err = s.fetchPageWithRetry(browserSession)
 	if err != nil {
 		return nil, s.translateBrowserError(err)
 	}
+	// tu sie pozbyc context ??
 	pageDto, err := callback(browserSession.GetContext())
 	return pageDto, s.translateBrowserError(err)
 }
@@ -354,6 +393,10 @@ func (s *BaseScraper) translateBrowserError(err error) error {
 		s.log(logger.LevelDebug, "Translated browser error", s.GetConfig().Name, "originalErr", err, "translatedErr", types.ErrRatelimit)
 		return types.ErrRatelimit
 	}
+	if errors.Is(err, browserTypes.ErrFetchManagedChallenge) {
+		s.log(logger.LevelDebug, "Translated browser error", s.GetConfig().Name, "originalErr", err, "translatedErr", types.ErrRatelimit)
+		return types.ErrRatelimit
+	}
 	if errors.Is(err, browserTypes.ErrFetchTargetServer) {
 		s.log(logger.LevelDebug, "Translated browser error", s.GetConfig().Name, "originalErr", err, "translatedErr", types.ErrTargetServer)
 		return types.ErrTargetServer
@@ -364,14 +407,13 @@ func (s *BaseScraper) translateBrowserError(err error) error {
 
 func (s *BaseScraper) ScrapeAsyncBase(
 	channels *types.ScrapeChannels,
-	scrapePageCallback func(string, context.Context) (*dto.PageDTO, error),
-	opts ...types.ScrapeOption,
+	scrapePageCallback func(string) (*dto.PageDTO, error),
 ) error {
-	s.InitListScraperWorker(opts...)
 	workerConfig := s.GetWorkerConfig("main")
 	go func() {
 		for {
-			s.StartListScraperWorker(opts...)
+			waitBeforeScrapeAttempt(s.GetName())
+			s.StartListScraperWorker()
 			s.StartCooldown(workerConfig.Cooldown)
 		}
 	}()
@@ -380,14 +422,19 @@ func (s *BaseScraper) ScrapeAsyncBase(
 
 func (s *BaseScraper) ScrapePageDataBase(
 	pageURL string,
-	pageCtx context.Context,
 	getDtoFunc func(context.Context) (*dto.PageDTO, error),
 ) (*dto.PageDTO, error) {
-	browserSession, err := s.fetchPageWithRetry(pageCtx, pageURL)
+	ctx, cancel, err := s.browser.GetNewContext()
+	if err != nil {
+		return nil, s.logAndReturnError("error creating browser context for page validation", s.GetName(), "pageURL", pageURL, "error", err)
+	}
+	defer cancel()
+	browserSession := browser.NewBrowserSession(ctx, cancel)
+	browserSession.SetURL(pageURL)
+	err = s.fetchPageWithRetry(browserSession)
 	if err != nil {
 		return nil, s.translateBrowserError(err)
 	}
-	defer browserSession.GetCancelFunc()()
 	s.log(logger.LevelDebug, "Fetching page details", s.GetName(), "pageURL", pageURL)
 	localPageDto, err := getDtoFunc(browserSession.GetContext())
 	if err != nil {
@@ -397,9 +444,11 @@ func (s *BaseScraper) ScrapePageDataBase(
 	return localPageDto, nil
 }
 
-func (s *BaseScraper) fetchPageWithRetry(ctx context.Context, url string) (interfaces.BrowserSessionInterface, error) {
+func (s *BaseScraper) fetchPageWithRetry(browserSession interfaces.BrowserSessionInterface) error {
 	s.fetchMutex.Lock()
 	defer s.fetchMutex.Unlock()
+	s.buildBrowserOptions()
 	browserOptions := s.getBrowserOptions()
-	return s.browser.FetchPageWithRetry(ctx, url, browserOptions)
+	browserSession.SetOptions(browserOptions)
+	return s.browser.FetchPageWithRetry(browserSession)
 }

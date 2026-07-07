@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	ErrFetchPage         = errors.New("browser error")
-	ErrFetchRatelimit    = errors.New("ratelimited error")
-	ErrFetchTargetServer = errors.New("target server error")
-	ErrFetchPageNotFound = errors.New("page not found")
+	ErrFetchPage             = errors.New("browser error")
+	ErrFetchRatelimit        = errors.New("ratelimited error")
+	ErrFetchManagedChallenge = errors.New("managed challenge detected")
+	ErrFetchTargetServer     = errors.New("target server error")
+	ErrFetchPageNotFound     = errors.New("page not found")
 
 	ErrGetPage        = errors.New("error getting page")
 	ErrFetchWithRetry = errors.New("error fetching page with retry")
@@ -21,14 +22,16 @@ var (
 )
 
 type FetchOptions struct {
-	Cookies           []*network.CookieParam
-	UserAgent         string
-	Timeout           time.Duration
-	RatelimitCooldown time.Duration
-	Retries           int
-	SaveBody          bool
-	SaveHeaders       bool
-	AllowAssets       bool
+	Cookies                []*network.CookieParam
+	UserAgent              string
+	Timeout                time.Duration
+	RatelimitCooldown      time.Duration
+	Retries                int
+	SaveBody               bool
+	SaveHeaders            bool
+	AllowAssets            bool
+	WaitAntiBotBootstrap   bool
+	BodyGetSleep           time.Duration
 }
 
 type FetchOption func(*FetchOptions)
@@ -78,6 +81,18 @@ func WithCookies(cookies ...*network.CookieParam) FetchOption {
 func WithRetries(retries int) FetchOption {
 	return func(o *FetchOptions) {
 		o.Retries = retries
+	}
+}
+
+func WithBodyGetSleep(sleep time.Duration) FetchOption {
+	return func(o *FetchOptions) {
+		o.BodyGetSleep = sleep
+	}
+}
+
+func WithWaitAntiBotBootstrap(wait bool) FetchOption {
+	return func(o *FetchOptions) {
+		o.WaitAntiBotBootstrap = wait
 	}
 }
 

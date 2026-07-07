@@ -1,7 +1,6 @@
 package interfaces
 
 import (
-	"context"
 	"example-wikipedia-scraper/internal/dto"
 	"example-wikipedia-scraper/internal/model"
 	types "example-wikipedia-scraper/internal/types/scraper"
@@ -10,8 +9,9 @@ import (
 type ScraperInterface interface {
 	GetName() string
 	GetURL() string
+	InitScraper(opts ...types.ScrapeOption) error
 	ScrapeSync(opts ...types.ScrapeOption) ([]model.Page, error)
-	ScrapeAsync(channels *types.ScrapeChannels, opts ...types.ScrapeOption) error
-	ScrapePageData(pageURL string, pageCtx context.Context) (*dto.PageDTO, error)
+	ScrapeAsync(channels *types.ScrapeChannels) error
+	ScrapePageData(pageURL string) (*dto.PageDTO, error)
 	ValidatePage(page *model.Page) (*dto.PageDTO, error)
 }

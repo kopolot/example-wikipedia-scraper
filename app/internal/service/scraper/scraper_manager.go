@@ -8,17 +8,23 @@ import (
 
 // ScraperManager zarządza zarejestrowaniem i przeładowaniem scraperów (SRP)
 type ScraperManager struct {
-	config   config.ConfigInterface
-	scrapers map[string]interfaces.ScraperInterface
-	logger   interfaces.LoggerInterface
+	config     config.ConfigInterface
+	scrapers   map[string]interfaces.ScraperInterface
+	logger     interfaces.LoggerInterface
+	siteHealth *SiteHealth
 }
 
 func NewScraperManager(cfg config.ConfigInterface, logger interfaces.LoggerInterface) *ScraperManager {
 	return &ScraperManager{
-		config:   cfg,
-		scrapers: make(map[string]interfaces.ScraperInterface),
-		logger:   logger,
+		config:     cfg,
+		scrapers:   make(map[string]interfaces.ScraperInterface),
+		logger:     logger,
+		siteHealth: NewSiteHealth(cfg, logger),
 	}
+}
+
+func (sm *ScraperManager) GetSiteHealth() interfaces.SiteHealthInterface {
+	return sm.siteHealth
 }
 
 func (sm *ScraperManager) RegisterScrapers(registry map[string]registry.ScraperFactory) {

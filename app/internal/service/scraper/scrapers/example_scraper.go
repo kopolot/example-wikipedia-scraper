@@ -12,13 +12,26 @@ import (
 )
 
 type ExampleScraper struct {
-	url string
+	url           string
+	scrapeOptions *types.ScrapeOptions
 }
 
 func NewExampleScraper(url string) *ExampleScraper {
 	return &ExampleScraper{
 		url: url,
 	}
+}
+
+func (s *ExampleScraper) GetScrapeOptions() types.ScrapeOptions {
+	if s.scrapeOptions == nil {
+		return types.ScrapeOptions{}
+	}
+	return *s.scrapeOptions
+}
+
+func (s *ExampleScraper) InitScraper(opts ...types.ScrapeOption) error {
+	s.scrapeOptions = types.ApplyOptions(opts...)
+	return nil
 }
 
 func (s *ExampleScraper) GetName() string {
@@ -29,9 +42,9 @@ func (s *ExampleScraper) GetURL() string {
 	return s.url
 }
 
-func (s *ExampleScraper) ScrapeAsync(channels *types.ScrapeChannels, opts ...types.ScrapeOption) error {
+func (s *ExampleScraper) ScrapeAsync(channels *types.ScrapeChannels) error {
 	pageQueue := channels.PageQueue
-	options := types.ApplyOptions(opts...)
+	options := s.GetScrapeOptions()
 
 	if options.MaxItems <= 0 {
 		options.MaxItems = 10
@@ -105,16 +118,10 @@ func (s *ExampleScraper) ScrapeSync(opts ...types.ScrapeOption) ([]model.Page, e
 	return pages, nil
 }
 
-func (s *ExampleScraper) ScrapePageData(pageURL string, pageCtx context.Context) (*dto.PageDTO, error) {
+func (s *ExampleScraper) ScrapePageData(pageURL string) (*dto.PageDTO, error) {
 	log.Printf("Example scraper: scraping page data from %s", pageURL)
 
 	time.Sleep(50 * time.Millisecond)
-
-	select {
-	case <-pageCtx.Done():
-		return nil, fmt.Errorf("page scraping cancelled: %v", pageCtx.Err())
-	default:
-	}
 
 	pageID := 0
 	if len(pageURL) > 0 {

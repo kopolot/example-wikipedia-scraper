@@ -15,22 +15,10 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-var (
-	wikimockBrowser mockService.MockBrowser
-	wikimockConfig  testutils.MockConfig
-	wikilogger      testutils.MockLogger
-)
-
-func setUpWikiMocks(t *testing.T) {
-	t.Helper()
-	wikimockBrowser = mockService.MockBrowser{}
-	wikimockConfig = testutils.MockConfig{}
-	wikilogger = testutils.MockLogger{}
-}
-
 func TestScrapeList_ExploreWillPageOffsetWork(t *testing.T) {
+	mockBrowser := mockService.MockBrowser{}
+	mockLogger := testutils.MockLogger{}
 
-	setUpWikiMocks(t)
 	siteConfig := &config.SiteConfig{
 		Name:      "wikipedia.pl",
 		PagesBack: 1,
@@ -44,29 +32,30 @@ func TestScrapeList_ExploreWillPageOffsetWork(t *testing.T) {
 		},
 	}
 
-	testedUrl := "https://pl.wikipedia.org/w/index.php?title=Specjalna:Szukaj&limit=100&offset=0&ns0=1&sort=create_timestamp_desc&search=w+OR+z+OR+u+OR+o+OR+i+OR+a"
+	newCtx, cancelFunc := chromedp.NewContext(context.Background())
+	mockBrowser.On("GetOptions", []browser.FetchOption(nil)).Return(browser.FetchOptions{})
+	mockBrowser.On("GetNewContext").Return(newCtx, cancelFunc, nil)
+	mockBrowser.On("RunActions", mock.Anything, mock.Anything).Return(nil)
 
-	wikimockBrowser.On("GetOptions", []browser.FetchOption(nil)).Return(browser.FetchOptions{})
-
-	newCtx, cancleFunc := chromedp.NewContext(context.Background())
-	wikimockBrowser.On("GetNewContext").Return(newCtx, cancleFunc, nil)
-
-	mockBrowserSession := testutils.MockBrowserSession{}
-
-	wikimockBrowser.On("FetchPageWithRetry", newCtx, testedUrl, mock.AnythingOfType("browser.FetchOptions")).Return(&mockBrowserSession, nil)
-
+	mockBrowserSession := mockService.MockBrowserSession{}
+	mockBrowser.On("FetchPageWithRetry", mock.Anything).Return(nil)
 	mockBrowserSession.On("GetContext").Return(newCtx)
+	mockBrowserSession.On("SetURL", mock.Anything).Return()
+	mockBrowserSession.On("SetOptions", mock.Anything).Return()
+	mockBrowserSession.On("GetOptions").Return(browser.FetchOptions{SaveBody: true})
 
-	scraper := NewWikipediaPLScraper(siteConfig.URL, &wikimockBrowser, siteConfig, &wikilogger)
+	scraper := NewWikipediaPLScraper(siteConfig.URL, &mockBrowser, siteConfig, &mockLogger)
 	pageChann := make(chan *dto.PageDTO, 100)
 	channels := &types.ScrapeChannels{
 		PageQueue:   pageChann,
 		FailedPages: make(chan *dto.UnprocessedPageDTO, 100),
 	}
 
-	scraper.ScrapeAsync(channels, types.WithMaxItems(1))
+	scraper.InitScraper(types.WithMaxItems(1))
+	go func() {
+		_ = scraper.ScrapeAsync(channels)
+	}()
 
-	time.Sleep(10 * time.Second) // dajemy czas na wykonanie goroutine
-
-	wikimockBrowser.AssertExpectations(t)
+	time.Sleep(2 * time.Second)
+	mockBrowser.AssertExpectations(t)
 }

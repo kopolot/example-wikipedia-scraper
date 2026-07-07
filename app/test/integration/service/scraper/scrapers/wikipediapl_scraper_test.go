@@ -46,8 +46,8 @@ func TestScrapeList_ExploreWillPageOffsetWork(t *testing.T) {
 		scraperTypes.WithMaxItems(1),
 	}
 
-	scraper.InitListScraperWorker(options...)
-	err = scraper.StartListScraperWorker(options...)
+	scraper.InitScraper(options...)
+	err = scraper.StartListScraperWorker()
 	assert.NoError(t, err)
 }
 
@@ -65,10 +65,7 @@ func TestWikipediaPLScraper_ScrapePage(t *testing.T) {
 	scraper := tested.NewWikipediaPLScraper(wikiConfig.URL, browserInstance, wikiConfig, logger.GetLogger())
 
 	pageUrl := "https://pl.wikipedia.org/wiki/Chor%C4%85giew_pancerna_koronna_Stanis%C5%82awa_Wadowskiego"
-	ctx, cancel, err := browserInstance.GetNewContext()
-	require.NoError(t, err)
-	defer cancel()
-	dto, err := scraper.ScrapePageData(pageUrl, ctx)
+	dto, err := scraper.ScrapePageData(pageUrl)
 	require.NoError(t, err)
 	require.NotNil(t, dto)
 }

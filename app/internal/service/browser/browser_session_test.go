@@ -1,6 +1,7 @@
 package browser
 
 import (
+	types "example-wikipedia-scraper/internal/types/browser"
 	"context"
 	"testing"
 	"time"
@@ -15,7 +16,11 @@ func TestBrowserSession_BasicFlow(t *testing.T) {
 	session := NewBrowserSession(ctx, cancel)
 	session.SetURL("https://example.com")
 	session.SetUserAgent("TestAgent")
-	session.SetOptions(true, true, false)
+	session.SetOptions(types.FetchOptions{
+		SaveBody:    true,
+		SaveHeaders: true,
+		AllowAssets: false,
+	})
 	session.SetRequestID(network.RequestID("req-1"))
 	session.SetStartTime(time.Now())
 	session.SetEndTime(time.Now().Add(100 * time.Millisecond))
@@ -24,7 +29,7 @@ func TestBrowserSession_BasicFlow(t *testing.T) {
 		Status:  200,
 		Headers: map[string]interface{}{"Content-Type": "text/html"},
 	}
-	session.SetNetworkResponseAndClearBrowserResponse(resp)
+	session.SetNetworkResponse(resp)
 	br := session.GetBrowserResponse()
 	assert.Equal(t, 200, br.StatusCode)
 	assert.Equal(t, "https://example.com", br.URL)
@@ -38,7 +43,11 @@ func TestBrowserSession_OptionsFlags(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	session := NewBrowserSession(ctx, cancel)
-	session.SetOptions(true, false, true)
+	session.SetOptions(types.FetchOptions{
+		SaveBody:    true,
+		SaveHeaders: false,
+		AllowAssets: true,
+	})
 	assert.True(t, session.ShouldSaveBody())
 	assert.False(t, session.ShouldSaveHeaders())
 	assert.True(t, session.ShouldAllowAssets())

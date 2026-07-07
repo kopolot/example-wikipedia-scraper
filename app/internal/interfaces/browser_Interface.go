@@ -1,12 +1,13 @@
 package interfaces
 
 import (
-	"context"
 	"example-wikipedia-scraper/internal/config"
 	types "example-wikipedia-scraper/internal/types/browser"
+	"context"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/chromedp"
 )
 
 type BrowserInterface interface {
@@ -14,19 +15,20 @@ type BrowserInterface interface {
 	SetConfig(config config.BrowserSettings)
 	InitBrowser() error
 	GetPageContent(url string, opts ...types.FetchOption) (*types.BrowserResponse, error)
-	FetchPage(ctx context.Context, url string, options types.FetchOptions) (BrowserSessionInterface, error)
+	FetchPage(browserSession BrowserSessionInterface) error
 	GetNewContext() (context.Context, context.CancelFunc, error)
 	GetCookies(context.Context) ([]*network.Cookie, error)
 	Close()
 	GetOptions(opts ...types.FetchOption) types.FetchOptions
-	FetchPageWithRetry(ctx context.Context, url string, options types.FetchOptions) (BrowserSessionInterface, error)
+	FetchPageWithRetry(browserSession BrowserSessionInterface) error
+	RunActions(ctx context.Context, actions ...chromedp.Action) error
 }
 
 type BrowserSessionInterface interface {
 	GetContext() context.Context
 	GetCancelFunc() context.CancelFunc
 	GetBrowserResponse() types.BrowserResponse
-	SetNetworkResponseAndClearBrowserResponse(response *network.Response)
+	SetNetworkResponse(response *network.Response)
 	SetURL(url string)
 	GetURL() string
 	SetRequestID(id network.RequestID)
@@ -35,7 +37,8 @@ type BrowserSessionInterface interface {
 	SetEndTime(t time.Time)
 	SetBody(body []byte)
 	SetUserAgent(ua string)
-	SetOptions(saveBody, saveHeaders, allowAssets bool)
+	SetOptions(options types.FetchOptions)
+	GetOptions() types.FetchOptions
 	ShouldSaveBody() bool
 	ShouldSaveHeaders() bool
 	ShouldAllowAssets() bool

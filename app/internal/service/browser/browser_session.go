@@ -1,10 +1,10 @@
 package browser
 
 import (
-	"context"
 	"example-wikipedia-scraper/internal/logger"
 	types "example-wikipedia-scraper/internal/types/browser"
 	"example-wikipedia-scraper/pkg/helpers"
+	"context"
 	"sync"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 )
 
 type BrowserSession struct {
+	options         types.FetchOptions
 	mu              sync.RWMutex
 	body            []byte
 	startTime       time.Time
@@ -23,14 +24,13 @@ type BrowserSession struct {
 	userAgent       string
 	context         context.Context
 	url             string
-	initOnce        sync.Once
 	cancel          context.CancelFunc
-	browserResponse *types.BrowserResponse
 	networkResponse *network.Response
 	headers         map[string]string
 	saveBody        bool
 	saveHeaders     bool
 	allowAssets     bool
+	bodyGetSleep    time.Duration
 }
 
 func NewBrowserSession(ctx context.Context, cancel context.CancelFunc) *BrowserSession {
@@ -43,6 +43,13 @@ func NewBrowserSession(ctx context.Context, cancel context.CancelFunc) *BrowserS
 
 func (s *BrowserSession) GetContext() context.Context {
 	return s.context
+}
+
+func (s *BrowserSession) ResetContext(ctx context.Context, cancel context.CancelFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.context = ctx
+	s.cancel = cancel
 }
 
 func (s *BrowserSession) GetCancelFunc() context.CancelFunc {
@@ -97,12 +104,19 @@ func (s *BrowserSession) SetUserAgent(ua string) {
 	s.userAgent = ua
 }
 
-func (s *BrowserSession) SetOptions(saveBody, saveHeaders, allowAssets bool) {
+func (s *BrowserSession) SetOptions(options types.FetchOptions) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.saveBody = saveBody
-	s.saveHeaders = saveHeaders
-	s.allowAssets = allowAssets
+	s.options = options
+	s.saveBody = options.SaveBody
+	s.saveHeaders = options.SaveHeaders
+	s.allowAssets = options.AllowAssets
+}
+
+func (s *BrowserSession) GetOptions() types.FetchOptions {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.options
 }
 
 func (s *BrowserSession) ShouldSaveBody() bool {
@@ -123,11 +137,10 @@ func (s *BrowserSession) ShouldAllowAssets() bool {
 	return s.allowAssets
 }
 
-func (s *BrowserSession) SetNetworkResponseAndClearBrowserResponse(response *network.Response) {
+func (s *BrowserSession) SetNetworkResponse(response *network.Response) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.networkResponse = response
-	s.browserResponse = nil
 }
 
 func (s *BrowserSession) GetBrowserResponse() types.BrowserResponse {
@@ -153,6 +166,18 @@ func (s *BrowserSession) GetBrowserResponse() types.BrowserResponse {
 	return response
 }
 
+func (s *BrowserSession) GetBodyGetSleep() time.Duration {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.bodyGetSleep
+}
+
+func (s *BrowserSession) SetBodyGetSleep(sleep time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.bodyGetSleep = sleep
+}
+
 func (s *BrowserSession) extractHeaders(response *types.BrowserResponse) {
 	if s.networkResponse != nil && s.networkResponse.Headers != nil {
 		for k, v := range s.networkResponse.Headers {
@@ -165,25 +190,37 @@ func (s *BrowserSession) extractHeaders(response *types.BrowserResponse) {
 
 func (s *BrowserSession) SetupResponseListener(wg *sync.WaitGroup) {
 	ctx := s.GetContext()
+	var requestID network.RequestID
+	getBrowserResponseOnce := false
+	s.endTime = time.Time{}
+	s.body = nil
+	s.networkResponse = nil
+	s.headers = make(map[string]string)
+	s.requestID = ""
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
 		switch e := ev.(type) {
 		case *network.EventRequestWillBeSent:
 			if helpers.UrlsEqualNormalized(e.Request.URL, s.GetURL()) {
-				s.initOnce.Do(func() {
+				if !getBrowserResponseOnce {
 					s.SetRequestID(e.RequestID)
+					requestID = e.RequestID
 					s.SetStartTime(time.Now())
-				})
+					getBrowserResponseOnce = true
+				}
 			}
 		case *network.EventLoadingFinished:
-			if s.GetRequestID() == e.RequestID {
+			if requestID == e.RequestID {
 				s.SetEndTime(time.Now())
-				defer wg.Done()
-				go func() {
-					if s.ShouldSaveBody() {
-						body := s.getBody(e)
+				if s.ShouldSaveBody() {
+					go func() {
+						defer wg.Done()
+						time.Sleep(s.GetBodyGetSleep())
+						body := s.getBody()
 						s.SetBody(body)
-					}
-				}()
+					}()
+				} else {
+					wg.Done()
+				}
 			}
 		case *fetch.EventRequestPaused:
 			go s.blockedResources(e)
@@ -204,13 +241,12 @@ func (s *BrowserSession) blockedResources(event *fetch.EventRequestPaused) {
 	fetch.ContinueRequest(event.RequestID).Do(ctx)
 }
 
-func (s *BrowserSession) getBody(event *network.EventLoadingFinished) []byte {
-	requestID := event.RequestID
-	chromedpContext := chromedp.FromContext(s.GetContext())
-	body, err := network.GetResponseBody(requestID).Do(cdp.WithExecutor(s.GetContext(), chromedpContext.Target))
+func (s *BrowserSession) getBody() []byte {
+	var html string
+	err := chromedp.Run(s.GetContext(), chromedp.Evaluate(`document.documentElement.outerHTML`, &html))
 	if err != nil {
-		logger.Error("error fetching response body", "requestID", requestID, "err", err)
+		logger.Error("error fetching document HTML", "err", err)
 		return nil
 	}
-	return body
+	return []byte(html)
 }
