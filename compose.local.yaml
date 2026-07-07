@@ -15,6 +15,21 @@ services:
     cap_add:
       - SYS_PTRACE # Umożliwia użycie ptrace, co jest wymagane dla debuggera
 
+  scraper:
+    image: golang:1.25-alpine
+    working_dir: /app
+    volumes:
+      - ./app:/app
+    build:
+      context: .
+      dockerfile: ./docker/golang/scraper/Dockerfile.local
+    command: sh -c "go mod tidy && bin/hotreload_scraper.sh"
+    restart: always
+    depends_on:
+      - db
+      - rabbitmq
+    shm_size: "1gb"
+
   frontend:
     image: node:lts-alpine
     working_dir: /app
