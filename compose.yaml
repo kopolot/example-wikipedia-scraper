@@ -2,12 +2,13 @@ services:
   app:
     working_dir: /app
     build:
-      context: ./docker/golang
-      dockerfile: .Dockerfile
+      context: .
+      dockerfile: ./docker/golang/api/Dockerfile.prod
     networks:
       - app_network
     depends_on:
       - db
+    restart: always
 
   scraper:
     working_dir: /app
