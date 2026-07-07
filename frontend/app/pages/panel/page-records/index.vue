@@ -6,16 +6,6 @@
                     <div class="card-body">
                         <h1 class="text-center mb-4">{{ $t('panel.page_records.title') }}</h1>
 
-                        <!-- Filtry -->
-                        <!-- <div class="card mb-3">
-                            <div class="card-body">
-                                <div class="row g-2 align-items-end">
-                                    
-                                </div>
-                            </div>
-                        </div> -->
-
-                        <!-- Sortowanie + paginacja + akcje -->
                         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                 <label class="form-label mb-0 small">{{ $t('panel.page_records.sort') }}:</label>
@@ -84,15 +74,6 @@ async function loadPageRecords() {
 }
 
 function resetFilters() {
-    // selectedMakeIds.value = [];
-    // selectedModelIds.value = [];
-    // selectedFuelTypes.value = [];
-    // selectedBodyTypes.value = [];
-    // yearMin.value = undefined;
-    // yearMax.value = undefined;
-    // priceMin.value = undefined;
-    // priceMax.value = undefined;
-    // models.value = [];
     page.value = 1;
 }
 

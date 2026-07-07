@@ -25,6 +25,7 @@
         "show": "Pokaż menu",
         "hide": "Ukryj menu",
         "dashboard": "Pulpit",
+        "page_records": "Strony",
         "wanted": "Moje filtry"
     },
     "nav": {
@@ -86,11 +87,38 @@
         "redirect": "Za chwilę zostaniesz przekierowany do logowania.",
         "error": "Weryfikacja nie powiodła się. Link mógł wygasnąć."
     },
+    "page_record": {
+        "title": "Tytuł",
+        "content": "Treść",
+        "textField1": "Pole tekstowe 1",
+        "textField2": "Pole tekstowe 2",
+        "textField3": "Pole tekstowe 3",
+        "pageUrl": "Link do strony",
+        "createdAt": "Utworzono",
+        "updatedAt": "Zaktualizowano",
+        "images": "Obrazy"
+    },
+    "page_records": {
+        "fetch_error": "Błąd pobierania stron",
+        "no_records": "Brak stron do wyświetlenia."
+    },
     "panel": {
-        "title": "Placeholder - Panel zarządzania",
+        "title": "Panel Wikipedia Scraper",
         "loading": "Ładowanie...",
         "noRecords": "Brak rekordów do wyświetlenia.",
         "refresh": "Odśwież",
+        "page_records": {
+            "title": "Zeskrapowane strony",
+            "sort": "Sortowanie",
+            "sort_created_at": "Data utworzenia",
+            "sort_updated_at": "Data aktualizacji",
+            "sort_title": "Tytuł",
+            "order_asc": "Rosnąco",
+            "order_desc": "Malejąco",
+            "reset_filters": "Resetuj",
+            "refresh": "Odśwież",
+            "loading": "Ładowanie stron..."
+        },
         "user": {
             "title": "Profil użytkownika",
             "dataTitle": "Dane konta",
@@ -121,6 +149,33 @@
             "changePasswordError": "Nie udało się zmienić hasła.",
             "passwordsDoNotMatch": "Hasła nie są zgodne.",
             "logoutAll": "Wyloguj ze wszystkich urządzeń"
+        },
+        "user_wanted_filters": {
+            "title": "My filters",
+            "add": "Add",
+            "add_new_filter": "Add new filter",
+            "edit_filter": "Edit filter",
+            "details": "Details",
+            "save": "Save",
+            "disabled": "Disabled",
+            "matching_pages": "Matching pages",
+            "name": "Filter name",
+            "name_placeholder": "e.g. History articles",
+            "name_required": "Filter name is required",
+            "keywords": "Keywords",
+            "keywords_placeholder": "history, Poland, medieval",
+            "keywords_hint": "Comma-separated. Each keyword must appear in the title or content.",
+            "title_contains": "Title contains",
+            "title_contains_placeholder": "e.g. Battle",
+            "categories": "Categories",
+            "sites": "Sources",
+            "sites_hint": "Leave empty to include all sources.",
+            "no_filters": "You do not have any filters yet.",
+            "min": "From",
+            "max": "To"
+        },
+        "user_wanted_filters_pages": {
+            "title": "Strony pasujące do filtra"
         }
     }
 }

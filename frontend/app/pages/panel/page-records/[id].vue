@@ -20,7 +20,7 @@
                 <div class="col-12"><strong>{{ $t('page_record.textField2') }}:</strong> <div v-html="pageRecord.textField2"/></div>
                 <div class="col-12"><strong>{{ $t('page_record.textField3') }}:</strong> <div v-html="pageRecord.textField3"/> <img :src="pageRecord.textField3"></div>
                 <!--  -->
-                <div class="col-12"><strong>{{ $t('page_record.offerUrl') }}:</strong> <a :href="pageRecord.url" target="_blank">Link</a></div>
+                <div class="col-12"><strong>{{ $t('page_record.pageUrl') }}:</strong> <a :href="pageRecord.url" target="_blank">Link</a></div>
                 <div class="col-sm-6 col-md-4"><strong>{{ $t('page_record.createdAt') }}:</strong> {{ pageRecord.createdAt.toLocaleString() }}</div>
                 <div class="col-sm-6 col-md-4"><strong>{{ $t('page_record.updatedAt') }}:</strong> {{ pageRecord.updatedAt.toLocaleString() }}</div>
             </div>
@@ -54,7 +54,7 @@ const error = ref<string|null>(null);
 
 const { fetchPageById } = usePages();
 
-async function loadOffer() {
+async function loadPageRecord() {
   loading.value = true;
   error.value = null;
   const result = await fetchPageById(id);
@@ -63,7 +63,7 @@ async function loadOffer() {
   loading.value = false;
 }
 
-onMounted(loadOffer);
+onMounted(loadPageRecord);
 
 </script>
 

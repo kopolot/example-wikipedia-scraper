@@ -25,6 +25,7 @@
         "show": "Pokaż menu",
         "hide": "Ukryj menu",
         "dashboard": "Pulpit",
+        "page_records": "Strony",
         "wanted": "Moje filtry"
     },
     "nav": {
@@ -86,9 +87,36 @@
         "redirect": "Za chwilę zostaniesz przekierowany do logowania.",
         "error": "Weryfikacja nie powiodła się. Link mógł wygasnąć."
     },
+    "page_record": {
+        "title": "Tytuł",
+        "content": "Treść",
+        "textField1": "Pole tekstowe 1",
+        "textField2": "Pole tekstowe 2",
+        "textField3": "Pole tekstowe 3",
+        "pageUrl": "Link do strony",
+        "createdAt": "Utworzono",
+        "updatedAt": "Zaktualizowano",
+        "images": "Obrazy"
+    },
+    "page_records": {
+        "fetch_error": "Błąd pobierania stron",
+        "no_records": "Brak stron do wyświetlenia."
+    },
     "panel": {
-        "title": "Placeholder - Panel zarządzania",
+        "title": "Panel Wikipedia Scraper",
         "loading": "Ładowanie...",
+        "page_records": {
+            "title": "Zeskrapowane strony",
+            "sort": "Sortowanie",
+            "sort_created_at": "Data utworzenia",
+            "sort_updated_at": "Data aktualizacji",
+            "sort_title": "Tytuł",
+            "order_asc": "Rosnąco",
+            "order_desc": "Malejąco",
+            "reset_filters": "Resetuj",
+            "refresh": "Odśwież",
+            "loading": "Ładowanie stron..."
+        },
         "user": {
             "title": "Profil użytkownika",
             "dataTitle": "Dane konta",
@@ -128,33 +156,24 @@
             "details": "Szczegóły",
             "save": "Zapisz",
             "disabled": "Wyłączony",
-            "matching_offers": "Pasujące oferty",
-            "makes": "Marki",
-            "models": "Modele",
-            "year": "Rok produkcji",
-            "yearMin": "Rok od",
-            "yearMax": "Rok do",
-            "price": "Cena",
-            "priceMin": "Cena od",
-            "priceMax": "Cena do",
-            "mileage": "Przebieg",
-            "mileageMin": "Przebieg od",
-            "mileageMax": "Przebieg do",
-            "engine_size": "Pojemność silnika",
-            "engineSizeMin": "Pojemność od",
-            "engineSizeMax": "Pojemność do",
-            "fuel_types": "Typy paliwa",
-            "fuelTypes": "Typy paliwa",
-            "body_types": "Typy nadwozia",
-            "bodyTypes": "Typy nadwozia",
-            "transmissions": "Skrzynia biegów",
-            "drivetrains": "Napęd",
-            "colors": "Kolory",
+            "matching_pages": "Pasujące strony",
+            "name": "Nazwa filtra",
+            "name_placeholder": "np. Artykuły o historii",
+            "name_required": "Nazwa filtra jest wymagana",
+            "keywords": "Słowa kluczowe",
+            "keywords_placeholder": "historia, Polska, średniowiecze",
+            "keywords_hint": "Oddziel przecinkami. Każde słowo musi wystąpić w tytule lub treści.",
+            "title_contains": "Fragment tytułu",
+            "title_contains_placeholder": "np. Bitwa",
+            "categories": "Kategorie",
+            "sites": "Źródła",
+            "sites_hint": "Pozostaw puste, aby uwzględnić wszystkie źródła.",
+            "no_filters": "Nie masz jeszcze żadnych filtrów.",
             "min": "Od",
             "max": "Do"
         },
-        "user_wanted_filters_offers": {
-            "title": "Oferty pasujące do filtra"
+        "user_wanted_filters_pages": {
+            "title": "Strony pasujące do filtra"
         }
     }
 }

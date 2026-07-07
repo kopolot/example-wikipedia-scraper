@@ -3,6 +3,7 @@ export type PageType = {
     createdAt: Date
     updatedAt: Date
     deletedAt?: Date
+    siteName?: string
     title: string
     url: string
     content: string
