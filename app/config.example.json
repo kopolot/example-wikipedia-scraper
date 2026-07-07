@@ -23,7 +23,8 @@
         "host": "rabbitmq",
         "port": 5672,
         "user": "user",
-        "password": "password"
+        "password": "password",
+        "vhost": ""
     },
     "scraper_settings": {
         "validate_pages_interval": 1800000,
@@ -38,12 +39,25 @@
             "name": "example",
             "url": "https://example.com",
             "enabled": false
-        }
-    ],
-    "payment_methods": [
+        },
         {
-            "name": "example",
-            "enabled": true
+            "name": "wikipedia.pl",
+            "url": "https://pl.wikipedia.org",
+            "enabled": true,
+            "workers": [
+                {
+                    "name": "main",
+                    "number_of": 1,
+                    "cooldown": 2000
+                },
+                {
+                    "name": "details",
+                    "number_of": 1,
+                    "cooldown": 15000
+                }
+            ],
+            "pages_back": 1,
+            "blocked_cooldown": 250000
         }
     ],
     "browser_settings": {

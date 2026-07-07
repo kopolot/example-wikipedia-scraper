@@ -19,20 +19,25 @@ no host-level Go/Node build in normal operation. See `README.md` for the product
 - Dev stack: `sudo docker compose -f compose.yaml -f compose.local.yaml up -d`
   (this is what `bin/run-local` runs, minus the sudo). The `--build` flag is only needed
   the first time or after Dockerfile changes.
+- If host ports **8080** or **3000** are taken, copy `.env.example` to `.env` and set
+  `NGINX_HTTP_PORT`, `FRONTEND_DEV_PORT`, etc.
 - If `up` fails with a container-name conflict from a previous partial run, run
   `sudo docker compose -f compose.yaml -f compose.local.yaml down` first, then `up` again.
-- Access points (all through Nginx on `http://localhost:8080`):
+- Access points (all through Nginx on `http://localhost:8080`, or your `NGINX_HTTP_PORT`):
   - Dashboard: `/dashboard/`   API: `/api/`   MailHog: `/mailhog/`
   - Adminer: `/adminer/`   RabbitMQ mgmt: `/rabbitmq/`
 
 ### Backend (Go API) — non-obvious startup
-- The `app` container does **not** auto-start the API; its command is `sleep infinity`.
-  You must exec in and run it yourself. `air`, `dlv`, `migrate`, `make` are preinstalled.
+- The `app` and `scraper` containers do **not** auto-start their processes; both use
+  `sleep infinity`. You must exec in and run them yourself. `air`, `dlv`, `migrate`,
+  `make` are preinstalled.
 - First-run inside the container (`sudo docker compose -f compose.yaml -f compose.local.yaml exec app sh`, then `cd /app`):
   1. `go mod tidy` (required — `go.sum` is gitignored, so it must be regenerated).
   2. `go run ./cmd/migrate/main.go` (runs GORM AutoMigrate; the API's own AutoMigrate is
      commented out, so migrations must be run separately).
   3. `air` to run the API with hot reload (listens on `:8080` in-container, proxied at `/api/`).
+- Scraper (same stack, `exec scraper sh`): `go mod tidy`, then `air -c .air.scraper.toml`
+  or `go run ./cmd/scraper/main.go`.
 - The frontend container auto-runs `npm install && npm run dev` on startup (see
   `compose.local.yaml`); just wait for the Nuxt "Vite server warmed up" log.
 

@@ -10,19 +10,6 @@ services:
       - db
     restart: always
 
-  scraper:
-    working_dir: /app
-    build:
-      context: .
-      dockerfile: ./docker/golang/scraper/Dockerfile.prod
-    networks:
-      - app_network
-    depends_on:
-      - db
-      - rabbitmq
-    restart: always
-    shm_size: "1gb"
-
   db:
     image: postgres:17
     restart: always
