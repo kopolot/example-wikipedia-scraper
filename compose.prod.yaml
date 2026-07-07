@@ -1,0 +1,76 @@
+services:
+  db:
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d db"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  rabbitmq:
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: ./docker/golang/migrate/Dockerfile.prod
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - app_network
+
+  app:
+    build:
+      context: .
+      dockerfile: ./docker/golang/api/Dockerfile.prod
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: always
+    networks:
+      - app_network
+
+  scraper:
+    build:
+      context: .
+      dockerfile: ./docker/golang/scraper/Dockerfile.prod
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: always
+    shm_size: "1gb"
+    networks:
+      - app_network
+
+  frontend:
+    image: workspace-frontend
+    build:
+      context: .
+      dockerfile: ./docker/nuxt/Dockerfile.prod
+      args:
+        NUXT_PUBLIC_API_BASE: http://localhost:8080/api
+    depends_on:
+      - app
+    restart: always
+    networks:
+      - app_network
+
+  nginx:
+    depends_on:
+      - app
+      - frontend
