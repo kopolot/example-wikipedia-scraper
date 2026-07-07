@@ -38,6 +38,25 @@
             "name": "example",
             "url": "https://example.com",
             "enabled": false
+        },
+        {
+            "name": "wikipedia.pl",
+            "url": "https://pl.wikipedia.org",
+            "enabled": true,
+            "workers": [
+                {
+                    "name": "main",
+                    "number_of": 1,
+                    "cooldown": 2000
+                },
+                {
+                    "name": "details",
+                    "number_of": 1,
+                    "cooldown": 15000
+                }
+            ],
+            "pages_back": 1,
+            "blocked_cooldown": 250000
         }
     ],
     "payment_methods": [

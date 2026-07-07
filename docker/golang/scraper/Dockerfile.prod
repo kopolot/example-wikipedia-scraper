@@ -16,6 +16,7 @@ RUN apk add --no-cache chromium libc6-compat netcat-openbsd
 COPY --from=builder /app/bin/scraper.bin scraper.bin
 COPY --from=builder /app/config.example.json config.json
 COPY --from=builder /app/go.mod go.mod
+COPY --from=builder /app/resource resource
 COPY docker/scripts/wait-for-postgres.sh wait-for-postgres.sh
 COPY docker/scripts/entrypoint-scraper.sh entrypoint.sh
 
