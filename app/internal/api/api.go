@@ -6,15 +6,13 @@ import (
 	apiInterfaces "example-wikipedia-scraper/internal/interfaces/api"
 	authType "example-wikipedia-scraper/internal/interfaces/auth"
 	"example-wikipedia-scraper/internal/model"
-	"example-wikipedia-scraper/internal/model/repository"
-	"example-wikipedia-scraper/internal/service"
-	"example-wikipedia-scraper/internal/service/mailer"
 	types "example-wikipedia-scraper/internal/types/api"
 	pkgRepo "example-wikipedia-scraper/pkg/repository"
 	"io"
 	"net/http"
 	"os"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -59,81 +57,62 @@ func NewApi(config config.ConfigInterface, logger interfaces.LoggerInterface, au
 	return api
 }
 
-func (a *Api) LoadModules() {
-	a.loadUserApiModule()
-	a.loadPageApiModule()
-	a.loadUserWantedFiltersApiModule()
-}
-
-func (a *Api) loadUserApiModule() {
-	userRepo := repository.NewUserRepository()
-	mailerService := mailer.NewMailer(a.config.GetMailerConfig(), a.logger)
-	userService := service.NewUserService(userRepo, mailerService, a.config)
-	userApiModule := NewUserApiModule(userRepo, userService, a)
-	a.LoadModule(userApiModule)
-}
-
-func (a *Api) loadPageApiModule() {
-	pageRepo := repository.NewPageRepository()
-	pageApiModule := NewPageApiModule(a, pageRepo)
-	a.LoadModule(pageApiModule)
-}
-
-func (a *Api) loadUserWantedFiltersApiModule() {
-	userWantedPagesFilterRepo := repository.NewUserWantedPagesFilterRepository()
-	pageRepo := repository.NewPageRepository()
-	pageFilterService := service.NewPageFilterService(userWantedPagesFilterRepo, pageRepo)
-	userWantedFiltersApiModule := NewUserWantedFiltersApiModule(a, userWantedPagesFilterRepo, pageFilterService)
-	a.LoadModule(userWantedFiltersApiModule)
-}
-
 func (a *Api) RegisterRoutes(routes []*types.Route, prefix string) {
 	for _, route := range routes {
-		if prefix != "" {
-			route.Path = strings.TrimPrefix(route.Path, "")
-			route.Path = strings.TrimPrefix(prefix, "") + "" + route.Path
+		normalized := *route
+		normalized.Method = strings.ToUpper(route.Method)
+		normalized.Path = joinRoutePath(prefix, route.Path)
+		key := normalized.Path + "_" + normalized.Method
+		if _, exists := a.routes[key]; exists {
+			a.logger.Warn("duplicate route registration", "path", normalized.Path, "method", normalized.Method)
 		}
-		route.Method = strings.ToUpper(route.Method)
-		a.routes[route.Path+"_"+route.Method] = route
+		a.routes[key] = &normalized
 	}
 }
 
 func (a *Api) SetupRoutes() {
 	a.logger.Info("Setting up routes")
-	api := a.engine
-	// api := a.engine.Group("/api")
-	api.Use(a.recoverFromPanicMiddleware)
-	for _, route := range a.routes {
-		handlers := make([]gin.HandlerFunc, 0)
+	router := a.engine
+	router.Use(a.recoverFromPanicMiddleware)
+
+	routeKeys := make([]string, 0, len(a.routes))
+	for key := range a.routes {
+		routeKeys = append(routeKeys, key)
+	}
+	sort.Strings(routeKeys)
+
+	for _, key := range routeKeys {
+		route := a.routes[key]
+		handlers := make([]gin.HandlerFunc, 0, 2+len(route.Middlewares))
 		handlers = append(handlers, a.getRequestInstanceMiddleware)
 		for _, mw := range route.Middlewares {
-			middleware := a.middlewareToGinMiddleware(mw)
-			handlers = append(handlers, middleware)
+			handlers = append(handlers, a.middlewareToGinMiddleware(mw))
 		}
-		handler := a.handlerToGinHandler(route.Handler)
-		handlers = append(handlers, handler)
-		a.addRoute(route, handlers, api)
+		handlers = append(handlers, a.handlerToGinHandler(route.Handler, route.AfterMiddlewares))
+		a.addRoute(route, handlers, router)
 	}
 }
 
-func (a *Api) addRoute(route *types.Route, handlers []gin.HandlerFunc, api gin.IRoutes) {
+func (a *Api) addRoute(route *types.Route, handlers []gin.HandlerFunc, router gin.IRoutes) {
 	switch route.Method {
-	case "GET":
-		api.GET(route.Path, handlers...)
-	case "POST":
-		api.POST(route.Path, handlers...)
-	case "PUT":
-		api.PUT(route.Path, handlers...)
-	case "DELETE":
-		api.DELETE(route.Path, handlers...)
-	case "PATCH":
-		api.PATCH(route.Path, handlers...)
+	case http.MethodGet:
+		router.GET(route.Path, handlers...)
+	case http.MethodPost:
+		router.POST(route.Path, handlers...)
+	case http.MethodPut:
+		router.PUT(route.Path, handlers...)
+	case http.MethodDelete:
+		router.DELETE(route.Path, handlers...)
+	case http.MethodPatch:
+		router.PATCH(route.Path, handlers...)
+	default:
+		a.logger.Warn("unsupported HTTP method, route skipped", "method", route.Method, "path", route.Path)
 	}
 }
 
 func (a *Api) Run() error {
-	ServerAddress := a.config.GetApiConfig().ServerHost + ":" + a.config.GetApiConfig().Port
-	return a.engine.Run(ServerAddress)
+	serverAddress := a.config.GetApiConfig().ServerHost + ":" + a.config.GetApiConfig().Port
+	return a.engine.Run(serverAddress)
 }
 
 func (a *Api) AuthenticateMiddleware(request *types.ApiRequest) *types.ApiResponse {
@@ -158,14 +137,17 @@ func (a *Api) getRequestInstanceMiddleware(ctx *gin.Context) {
 	ctx.Next()
 }
 
-func (a *Api) handlerToGinHandler(handler func(request *types.ApiRequest) *types.ApiResponse) gin.HandlerFunc {
+func (a *Api) handlerToGinHandler(
+	handler func(request *types.ApiRequest) *types.ApiResponse,
+	afterMiddlewares []types.AfterMiddleware,
+) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiRequest := c.MustGet(contextRequestKey).(*types.ApiRequest)
 		response := handler(apiRequest)
-		for key, value := range response.Headers {
-			c.Header(key, value)
+		for _, afterMw := range afterMiddlewares {
+			afterMw(apiRequest, response)
 		}
-		c.JSON(response.StatusCode, response.Body)
+		writeApiResponse(c, response)
 	}
 }
 
@@ -173,11 +155,10 @@ func (a *Api) middlewareToGinMiddleware(middleware types.Middleware) gin.Handler
 	return func(c *gin.Context) {
 		apiRequest := c.MustGet(contextRequestKey).(*types.ApiRequest)
 		response := middleware(apiRequest)
-		if response != nil && !response.Body.Success {
-			for key, value := range response.Headers {
-				c.Header(key, value)
-			}
-			c.AbortWithStatusJSON(response.StatusCode, response.Body)
+		if response != nil {
+			writeApiResponse(c, response)
+			c.Abort()
+			return
 		}
 		c.Next()
 	}
@@ -190,9 +171,14 @@ func (a *Api) ginCtxToApiRequest(c *gin.Context) *types.ApiRequest {
 	for _, param := range c.Params {
 		pathParams[param.Key] = param.Value
 	}
-	bodyBytes, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		a.logger.Error("Failed to read request body", "error", err)
+	var body string
+	if c.Request.Body != nil {
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			a.logger.Error("Failed to read request body", "error", err)
+		} else {
+			body = string(bodyBytes)
+		}
 	}
 	return &types.ApiRequest{
 		Method:      c.Request.Method,
@@ -200,7 +186,7 @@ func (a *Api) ginCtxToApiRequest(c *gin.Context) *types.ApiRequest {
 		Headers:     headers,
 		QueryParams: queryParams,
 		PathParams:  pathParams,
-		Body:        string(bodyBytes),
+		Body:        body,
 		ClientIP:    c.ClientIP(),
 	}
 }

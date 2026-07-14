@@ -8,6 +8,7 @@ services:
       - app_network
     depends_on:
       - db
+      - redis
     restart: always
 
   db:
@@ -62,8 +63,17 @@ services:
     networks:
       - app_network
 
+  redis:
+    image: redis:7-alpine
+    restart: always
+    networks:
+      - app_network
+    volumes:
+      - redis_data:/data
+
 volumes:
   db_data:
+  redis_data:
 
 networks:
   app_network:

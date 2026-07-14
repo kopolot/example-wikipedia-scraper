@@ -1,4 +1,6 @@
 x-go-common: &x-go-common
+  environment:
+    LOG_FORMAT: json
   volumes:
     - ./app/resource:/app/resource
     - ./app/var:/app/var
@@ -50,6 +52,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_started
     restart: always
 
   scraper:

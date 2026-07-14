@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -30,8 +31,10 @@ type Logger struct {
 }
 
 func NewLogger(loggerName string, logLevel int8, cliLogging bool) *Logger {
+	dir := helpers.GetAbsoluteFilePath(filepath.Join("..", "..", "var", "log"))
+	filename := filepath.Join(dir, loggerName+".log")
 	logFile := &lumberjack.Logger{
-		Filename:   filepath.Join(helpers.GetCurrentFilePath(), "..", "..", "var", "log", loggerName+".log"),
+		Filename:   filename,
 		MaxSize:    10,
 		MaxBackups: 7,
 		MaxAge:     30,
@@ -42,15 +45,23 @@ func NewLogger(loggerName string, logLevel int8, cliLogging bool) *Logger {
 		writers = append(writers, os.Stdout)
 	}
 	multiWriter := io.MultiWriter(writers...)
+	serviceName := strings.TrimSuffix(loggerName, "_app")
+	level := slog.Level(logLevel)
+	handler := newLogHandler(multiWriter, level)
 	return &Logger{
-		logger: slog.New(
-			NewPlainTextHandler(
-				multiWriter,
-				slog.Level(logLevel),
-			),
+		logger: slog.New(handler).With(
+			slog.String("service", serviceName),
 		),
 		logFileWriter: logFile,
 	}
+}
+
+func newLogHandler(w io.Writer, level slog.Level) slog.Handler {
+	opts := &slog.HandlerOptions{Level: level}
+	if os.Getenv("LOG_FORMAT") == "json" {
+		return slog.NewJSONHandler(w, opts)
+	}
+	return NewPlainTextHandler(w, level)
 }
 
 func (l *Logger) GetLogWriter() io.Writer {

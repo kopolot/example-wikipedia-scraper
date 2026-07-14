@@ -4,6 +4,7 @@ type SiteConfig struct {
 	Workers         []*WorkerConfig `json:"workers"`
 	Name            string          `json:"name"`
 	URL             string          `json:"url"`
+	ProxyURL        string          `json:"proxy_url"`
 	PagesBack       int             `json:"pages_back"`
 	BlockedCooldown int             `json:"blocked_cooldown"`
 	Enabled         bool            `json:"enabled"`
@@ -77,4 +78,17 @@ type RabbitMQConfig struct {
 	User     string `json:"user"`
 	Password string `json:"password"`
 	Vhost    string `json:"vhost"`
+}
+
+type PaymentMethodConfig struct {
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+}
+
+type RedisConfig struct {
+	Host              string `json:"host"`
+	Port              int    `json:"port"`
+	Password          string `json:"password"`
+	DB                int    `json:"db"`
+	DefaultTTLSeconds int    `json:"default_ttl_seconds"`
 }

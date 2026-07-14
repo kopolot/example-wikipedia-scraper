@@ -20,7 +20,9 @@ type ConfigInterface interface {
 	GetMailerConfig() *MailerConfig
 	GetNotifierConfig() *NotifierConfig
 	GetDBConfig() *DBConfig
+	GetPaymentMethodsConfig() []*PaymentMethodConfig
 	GetRabbitMQConfig() *RabbitMQConfig
+	GetRedisConfig() *RedisConfig
 }
 
 func (c *BrowserSettings) GetBrowserEngineSettings() map[string]any {
@@ -37,8 +39,10 @@ type Config struct {
 	ScraperSettings *ScraperSettings `json:"scraper_settings"`
 	ApiConfig       *ApiConfig       `json:"api"`
 	MailerConfig    *MailerConfig    `json:"mailer"`
-	NotifierConfig  *NotifierConfig  `json:"notifier"`
-	RabbitMQConfig  *RabbitMQConfig  `json:"rabbitmq"`
+	NotifierConfig  *NotifierConfig        `json:"notifier"`
+	PaymentMethods  []*PaymentMethodConfig `json:"payment_methods"`
+	RabbitMQConfig  *RabbitMQConfig        `json:"rabbitmq"`
+	RedisConfig     *RedisConfig           `json:"redis"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -131,6 +135,22 @@ func (c *Config) GetDBConfig() *DBConfig {
 	return c.DB
 }
 
+func (c *Config) GetPaymentMethodsConfig() []*PaymentMethodConfig {
+	return c.PaymentMethods
+}
+
 func (c *Config) GetRabbitMQConfig() *RabbitMQConfig {
 	return c.RabbitMQConfig
+}
+
+func (c *Config) GetRedisConfig() *RedisConfig {
+	if c.RedisConfig == nil {
+		c.RedisConfig = &RedisConfig{
+			Host:              "redis",
+			Port:              6379,
+			DB:                0,
+			DefaultTTLSeconds: 86400,
+		}
+	}
+	return c.RedisConfig
 }

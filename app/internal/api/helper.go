@@ -93,6 +93,16 @@ func ForbiddenResponse() *types.ApiResponse {
 	return ForbiddenResponseWithMsg("Forbidden")
 }
 
+func ConflictResponseWithMsg(msg string) *types.ApiResponse {
+	return &types.ApiResponse{
+		StatusCode: http.StatusConflict,
+		Body: &types.ApiResponseBody{
+			Success: false,
+			Errors:  []types.ErrorDetail{{Message: msg}},
+		},
+	}
+}
+
 func OkResponse(data any) *types.ApiResponse {
 	return SuccesfulResponse(http.StatusOK, data)
 }
