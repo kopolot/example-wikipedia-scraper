@@ -3,6 +3,7 @@ package service
 import (
 	"example-wikipedia-scraper/internal/config"
 	"example-wikipedia-scraper/internal/dto"
+	"example-wikipedia-scraper/internal/service/mailer"
 	"time"
 
 	interfaces "example-wikipedia-scraper/internal/interfaces"
@@ -210,58 +211,52 @@ func (s *UserService) checkPasswordHash(password, hash string) bool {
 }
 
 func (s *UserService) sendVerificationEmail(user *model.User) error {
-	mail := s.mailerService.NewMail()
-	mail.To = []string{user.Email}
-	mail.Subject = "Verify your email address"
 	verificationLink := s.config.GetApiConfig().PublicFrontendHost + "verify-email?token=" + user.EmailVerificationToken
-	// tu można by użyć szablonu czy czegos tego typu
-	mail.Body = "Please verify your email by clicking the following link: " + verificationLink
+	mail, err := mailer.NewTemplateBuilder().VerificationEmail(user.Email, verificationLink)
+	if err != nil {
+		return err
+	}
 	return s.mailerService.Send(mail)
 }
 
 func (s *UserService) sendCreateUserEmail(user *model.User) error {
-	mail := s.mailerService.NewMail()
-	mail.To = []string{user.Email}
-	mail.Subject = "User account created"
 	verificationLink := s.config.GetApiConfig().PublicFrontendHost + "verify-email?token=" + user.EmailVerificationToken
-	// tu można by użyć szablonu czy czegos tego typu
-	mail.Body = "Please verify your email by clicking the following link: " + verificationLink
+	mail, err := mailer.NewTemplateBuilder().CreateUserEmail(user.Email, verificationLink)
+	if err != nil {
+		return err
+	}
 	return s.mailerService.Send(mail)
 }
 
 func (s *UserService) sendEmailVerifiedEmail(user *model.User) error {
-	mail := s.mailerService.NewMail()
-	mail.To = []string{user.Email}
-	mail.Subject = "Email address verified"
-	// tu można by użyć szablonu czy czegos tego typu
-	mail.Body = "Your email address has been successfully verified."
+	mail, err := mailer.NewTemplateBuilder().EmailVerifiedEmail(user.Email)
+	if err != nil {
+		return err
+	}
 	return s.mailerService.Send(mail)
 }
 
 func (s *UserService) sendPasswordResetEmail(user *model.User) error {
-	mail := s.mailerService.NewMail()
-	mail.To = []string{user.Email}
-	mail.Subject = "Password Reset Request"
 	resetLink := s.config.GetApiConfig().PublicFrontendHost + "reset_password?token=" + user.PasswordResetToken
-	// tu można by użyć szablonu czy czegos tego typu
-	mail.Body = "You can reset your password by clicking the following link: " + resetLink
+	mail, err := mailer.NewTemplateBuilder().PasswordResetEmail(user.Email, resetLink)
+	if err != nil {
+		return err
+	}
 	return s.mailerService.Send(mail)
 }
 
 func (s *UserService) sendPasswordChangedEmail(user *model.User) error {
-	mail := s.mailerService.NewMail()
-	mail.To = []string{user.Email}
-	mail.Subject = "Password Changed"
-	// tu można by użyć szablonu czy czegos tego typu
-	mail.Body = "Your password has been successfully changed."
+	mail, err := mailer.NewTemplateBuilder().PasswordChangedEmail(user.Email)
+	if err != nil {
+		return err
+	}
 	return s.mailerService.Send(mail)
 }
 
 func (s *UserService) sendLogoutEmail(user *model.User) error {
-	mail := s.mailerService.NewMail()
-	mail.To = []string{user.Email}
-	mail.Subject = "Logout Notification"
-	// tu można by użyć szablonu czy czegos tego typu
-	mail.Body = "You have been successfully logged out."
+	mail, err := mailer.NewTemplateBuilder().LogoutEmail(user.Email)
+	if err != nil {
+		return err
+	}
 	return s.mailerService.Send(mail)
 }
