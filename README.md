@@ -112,6 +112,15 @@ go mod tidy
 air -c .air.scraper.toml
 ```
 
+Notifier (osobny kontener, dev):
+
+```bash
+docker compose -f compose.yaml -f compose.local.yaml exec notify sh
+cd /app
+go mod tidy
+air -c .air.notify.toml
+```
+
 Frontend w `compose.local.yaml` uruchamia się sam (`npm install && npm run dev`).
 
 ### Produkcja
@@ -205,7 +214,7 @@ Część testów integracyjnych / browser wymaga sieci lub Chrome — patrz `AGE
 
 ## Roadmap
 
-Zobacz [`TODO.md`](TODO.md). Główne braki: worker **notify** (powiadomienia e-mail o nowych stronach), dalsze testy, porządki w deploy.
+Zobacz [`TODO.md`](TODO.md). Główne braki: testy integracyjne notifiera, dalsze porządki w deploy.
 
 ---
 

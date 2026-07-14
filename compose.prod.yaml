@@ -71,6 +71,20 @@ services:
     restart: unless-stopped
     shm_size: "1gb"
 
+  notify:
+    <<: *x-go-common
+    build:
+      context: .
+      dockerfile: ./docker/golang/notify/Dockerfile.prod
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     image: workspace-frontend
     build:

@@ -40,7 +40,7 @@ sudo docker compose -f compose.yaml -f compose.local.yaml up -d
 
 ## Backend (Go API) — startup dev
 
-Kontenery `app` i `scraper`: **`sleep infinity`** — procesy uruchamiasz ręcznie.
+Kontenery `app`, `scraper` i `notify`: **`sleep infinity`** — procesy uruchamiasz ręcznie.
 
 W kontenerze `app` (`exec app sh`, `cd /app`):
 
@@ -49,6 +49,8 @@ W kontenerze `app` (`exec app sh`, `cd /app`):
 3. `air` — API na `:8080`, proxowane jako `/api/`
 
 Scraper: `exec scraper sh` → `go mod tidy` → `air -c .air.scraper.toml` lub `go run ./cmd/scraper/main.go`.
+
+Notifier: `exec notify sh` → `go mod tidy` → `air -c .air.notify.toml` lub `go run ./cmd/notify/main.go`.
 
 Frontend (compose.local): auto `npm install && npm run dev` — czekaj na log Vite.
 
@@ -103,6 +105,15 @@ Kolejka `order_payment_notfied` → `SubscriptionService.AddSubscriptionTime`.
 
 ---
 
+## Notifier
+
+- **`PageNotificationService`** — skanuje `pages` z `notified = false`, dopasowuje filtry użytkowników, publikuje `page_notification` do RabbitMQ
+- Worker: `cmd/notify/main.go` — pętla enqueue + konsument kolejki (wysyłka maili przez `PageNotificationEmail`)
+- Prod: osobny kontener `notify` w `compose.prod.yaml`
+- Dev: kontener `notify` (`sleep infinity`) — uruchom ręcznie jak API/scraper
+
+---
+
 ## Auth / e-mail
 
 - Login bez weryfikacji → `"Email not verified"`
@@ -118,7 +129,7 @@ Flow testowy: register → mailhog → verify-email → login → subscribe (exa
 | Akcja | Komenda (w kontenerze `app`) |
 |-------|------------------------------|
 | Build API | `make api` |
-| Build all | `make build` — **może failować** bez `cmd/notify/main.go` (TODO) |
+| Build all | `make build` |
 | Vet | `go vet ./...` |
 | Testy | `go test ./internal/...` — część testów browser/mailer wymaga sieci lub MailHog; znane flaky na `main` |
 
@@ -131,7 +142,6 @@ Frontend: brak skryptów `lint`/`test` w package.json — `npx eslint .`, `npx v
 - Kod z **innej domeny biznesowej** prywatnego repozytorium źródłowego
 - Grafana, Loki, observability stack
 - Produkcja PSP (Stripe, PayU, …) — jest tylko **example payment**
-- `cmd/notify` — planowany, jeszcze nie zaimplementowany
 
 ---
 
