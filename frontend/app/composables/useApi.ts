@@ -1,6 +1,10 @@
 import type { ApiRequest, ApiResponse, ApiInterface, ApiResponseBody, PostRequest, PutRequest, DeleteRequest, PatchRequest, GetRequest } from "@/types/api";
 import type { FetchError, FetchResponse } from 'ofetch';
 import type { AvailableRouterMethod, NitroFetchOptions, NitroFetchRequest } from 'nitropack/types'
+import { v4 as uuid } from 'uuid';
+
+const idempotentHeaderKey = 'X-Idempotent-Token';
+const getIdempotentToken = () => useState('idempotentToken', () => uuid());
 
 export const useApi = (): ApiInterface => {
     const config = useRuntimeConfig()
@@ -23,6 +27,8 @@ export const useApi = (): ApiInterface => {
         const body = response._data as ApiResponseBody;
         if (!body?.success) {
             console.warn('API Error:', body?.errors);
+        } else {
+            resetIdempotentToken();
         }
         return {
             statusCode: response.status,
@@ -61,6 +67,7 @@ export const useApi = (): ApiInterface => {
         const tokenValue = useToken().getToken();
         if (tokenValue)
             headers['Authorization'] = `Bearer ${tokenValue}`;
+        headers[idempotentHeaderKey] = getIdempotentToken().value;
         const fetchOptions: NitroFetchOptions<NitroFetchRequest, AvailableRouterMethod<NitroFetchRequest>> = {
             method: request.method,
             headers: headers,
@@ -75,6 +82,10 @@ export const useApi = (): ApiInterface => {
                 : request.body;
         }
         return fetchOptions;
+    }
+
+    function resetIdempotentToken() {
+        getIdempotentToken().value = uuid();
     }
 
     return {

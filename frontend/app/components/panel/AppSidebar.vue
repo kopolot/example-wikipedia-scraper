@@ -10,6 +10,7 @@
         <li class="nav-item mb-2"><NuxtLink class="nav-link text-white" to="/panel">{{$t('menu.dashboard')}}</NuxtLink></li>
         <li class="nav-item mb-2"><NuxtLink class="nav-link text-white" to="/panel/page-records">{{$t('menu.page_records')}}</NuxtLink></li>
         <li class="nav-item mb-2"><NuxtLink class="nav-link text-white" to="/panel/wanted_filters">{{$t('menu.wanted')}}</NuxtLink></li>
+        <li class="nav-item mb-2"><NuxtLink class="nav-link text-white" to="/panel/user">{{$t('nav.profile')}}</NuxtLink></li>
       </ul>
     </nav>
   </div>

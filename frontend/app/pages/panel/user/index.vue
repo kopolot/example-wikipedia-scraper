@@ -19,6 +19,26 @@
                     </div>
                     <div class="col-md-4">
                         <div class="card shadow-sm mb-4">
+                            <div class="card-body text-center">
+                                <h2 class="h5 mb-3">{{ $t('panel.user.subscriptionTitle') }}</h2>
+                                <div v-if="user?.subscriptionLevel ?? 0> 0">
+                                    <p>{{ $t('panel.user.subscriptionLevel') }}: <strong>{{ subscriptionInfo?.name }}</strong></p>
+                                    <p v-if="user?.subscriptionExpiration" :class="{ 'text-danger': subExpired }">{{ subExpired ? $t('panel.user.subscriptionExpired') : $t('panel.user.subscriptionExpires') }}: <strong>{{ user?.subscriptionExpiration?.toLocaleString() }}</strong></p>
+                                    <div class="d-flex justify-content-center gap-3 mt-4">
+                                        <button v-if="user?.subscriptionLevel === 0" class="btn btn-success" @click="goToSubscribe">{{$t('panel.user.start')}}</button>
+                                        <button v-else-if="((user?.subscriptionLevel ?? 0) > 0) && subExpired" class="btn btn-warning" @click="goToSubscribe">{{$t('panel.user.renewSubscription')}}</button>
+                                        <!-- <button v-else class="btn btn-info" @click="goToSubscribe">{{$t('panel.user.renewSubscription')}}</button> -->
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    <p>{{ $t('panel.user.noActiveSubscription') }}</p>
+                                    <button class="btn btn-success" @click="goToSubscribe">{{$t('panel.user.startSubscription') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm mb-4">
                             <div class="card-body d-flex flex-column align-items-start gap-2">
                                 <h2 class="h5 mb-3">{{ $t('panel.user.actionsTitle') }}</h2>
                                 <NuxtLink class="btn btn-outline-primary w-100" to="user/change_password">

@@ -1,5 +1,8 @@
+import type { SubscriptionLevel } from "@/types/subscription_level";
+
 export const useUser = () => {
     const api = useApi();
+    const subscriptionData = useState<SubscriptionLevel | null>('user.subscriptionData', () => null);
 
     async function changeEmail(newEmail: string, password: string): Promise<{ success: boolean; error: string | null }> {
         try {
@@ -8,7 +11,6 @@ export const useUser = () => {
                 body: { new_email: newEmail, password },
             });
             if (response.body?.success) {
-                // useAuth().logout(); // Wyloguj użytkownika po zmianie emaila
                 return { success: true, error: null };
             } else {
                 console.error('Error changing email:', response.body?.errors);
@@ -55,9 +57,37 @@ export const useUser = () => {
         }
     }
 
+    async function loadSubscriptionData(): Promise<SubscriptionLevel | null> {
+        try {
+            const response = await api.get({
+                url: '/user/subscription_levels/' + useAuth().getUser()?.subscriptionLevel,
+            });
+            if (response.body?.success) {
+                subscriptionData.value = response.body.data as SubscriptionLevel;
+                return subscriptionData.value;
+            } else {
+                console.error('Error fetching subscription data:', response.body?.errors);
+                return null;
+            }
+        } catch (e) {
+            console.error('Error fetching subscription data:', e);
+            return null;
+        }
+    }
+
+    function getSubscriptionData(): SubscriptionLevel | null {
+        if (!subscriptionData.value) {
+            loadSubscriptionData();
+        }
+        return subscriptionData.value;
+    }
+
     return {
         changeEmail,
         changePassword,
         logoutAll,
+        loadSubscriptionData,
+        getSubscriptionData,
+        subscriptionData,
     };
 }
