@@ -16,6 +16,7 @@ Do przeniesienia logiki z projektu prywatnego na ten publiczny example użyłem 
 | **Użytkownik** | Rejestracja, weryfikacja e-mail (MailHog), panel Nuxt 4 |
 | **Filtry** | Zapisywane kryteria stron Wikipedia + dopasowania w panelu |
 | **Subskrypcje** | Poziomy Basic/Premium, limity filtrów, example payment (stub PSP) |
+| **Notifier** | Worker `cmd/notify` — dopasowanie filtrów, kolejka `page_notification`, e-maile o nowych stronach |
 
 ---
 
@@ -32,6 +33,7 @@ flowchart LR
   subgraph backend [Backend]
     API[Go API]
     SCR[Go scraper]
+    NTF[Go notify]
     REDIS[(Redis)]
     PG[(PostgreSQL)]
     RMQ[RabbitMQ]
@@ -46,6 +48,9 @@ flowchart LR
   API --> MH
   SCR --> PG
   SCR --> RMQ
+  NTF --> PG
+  NTF --> RMQ
+  NTF --> MH
 ```
 
 **Porty (dev, domyślnie):**
@@ -93,7 +98,7 @@ cp frontend/.env.example frontend/.env
 
 ### Pierwsze uruchomienie API i scrapera
 
-Kontenery `app` i `scraper` w trybie dev **nie startują procesów automatycznie** — trzeba wejść do środka:
+Kontenery `app`, `scraper` i `notify` w trybie dev **nie startują procesów automatycznie** — trzeba wejść do środka:
 
 ```bash
 docker compose -f compose.yaml -f compose.local.yaml exec app sh
@@ -129,6 +134,8 @@ Frontend w `compose.local.yaml` uruchamia się sam (`npm install && npm run dev`
 ./bin/run-prod
 # lub: docker compose -f compose.yaml -f compose.prod.yaml up -d --build
 ```
+
+Stack prod uruchamia osobne kontenery: `app`, `scraper`, `notify`, `migrate` (jednorazowo), `frontend`, `nginx`.
 
 ---
 
@@ -168,6 +175,12 @@ Flow:
 2. Wybór planu + metody **example**
 3. `POST /order/` → redirect na `/api/order/example_payment/{id}` (auto-akceptacja)
 4. RabbitMQ → przedłużenie `subscription_level` i `subscription_expiration`
+
+### Powiadomienia e-mail o nowych stronach
+
+1. Scraper zapisuje nowe `pages` z `notified = false`
+2. Worker `notify` dopasowuje filtry użytkowników z aktywną subskrypcją
+3. Kolejka `page_notification` → mail HTML (`PageNotificationEmail`) przez MailHog (dev) lub SMTP (prod)
 
 ---
 

@@ -14,8 +14,9 @@
 
 ## Do zrobienia
 
-- [ ] Testy integracyjne pod subskrypcje, orders i notifier
-- [ ] Uporządkowanie deploy docs (prod checklist: migracje, config, redis, secrets)
+- [ ] Testy integracyjne: subskrypcje, orders, notifier (enqueue + mail)
+- [ ] Deploy docs: prod checklist (migracje 000001–000009, `config.json`, Redis, RabbitMQ, SMTP)
+- [ ] Dev compose: kontener `scraper` w `compose.local.yaml` (obecnie tylko `app` + `notify` + infra)
 - [ ] Opcjonalnie: sync kolejnych poprawek infrastruktury z prywatnego repozytorium źródłowego
 
 ## Świadomie poza zakresem tego example
