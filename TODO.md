@@ -9,15 +9,13 @@
 - [x] HTML mail templates (`TemplateBuilder`)
 - [x] API refactor: `Container`, Redis idempotency, JSON logging
 - [x] Subskrypcje Basic/Premium + example payment + UI `/panel/user/subscribe`
+- [x] Notifier worker (`cmd/notify`) + kontener prod + dev manual start
 - [x] README + AGENTS.md z opisem pochodzenia (private repo → AI-assisted port)
 
 ## Do zrobienia
 
-- [ ] **Notifier worker** — `cmd/notify/main.go`, powiadomienia e-mail o nowych dopasowanych stronach (kolejka + `PageNotificationEmail`)
-- [ ] Podpięcie `notifier` w `compose.prod.yaml`
-- [ ] Testy integracyjne pod subskrypcje i orders
-- [ ] Uporządkowanie `make build` / Dockerfile.all (zależność od notify)
-- [ ] Deploy docs (prod checklist: migracje, config, redis, secrets)
+- [ ] Testy integracyjne pod subskrypcje, orders i notifier
+- [ ] Uporządkowanie deploy docs (prod checklist: migracje, config, redis, secrets)
 - [ ] Opcjonalnie: sync kolejnych poprawek infrastruktury z prywatnego repozytorium źródłowego
 
 ## Świadomie poza zakresem tego example
