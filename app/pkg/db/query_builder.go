@@ -43,10 +43,12 @@ type QueryBuilder interface {
 	Distinct(args ...any) QueryBuilder
 	LockForUpdate() QueryBuilder
 	Group(column string) QueryBuilder
+	Transaction(fn func(tx QueryBuilder) error) error
 }
 
 type gormQueryBuilder struct {
-	db *gorm.DB
+	db           *gorm.DB
+	rowsAffected int64
 }
 
 func NewQueryBuilder(db *gorm.DB) QueryBuilder {
@@ -111,6 +113,12 @@ func (g *gormQueryBuilder) Commit() error {
 
 func (g *gormQueryBuilder) Rollback() error {
 	return g.db.Rollback().Error
+}
+
+func (g *gormQueryBuilder) Transaction(fn func(tx QueryBuilder) error) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		return fn(&gormQueryBuilder{db: tx})
+	})
 }
 
 func (g *gormQueryBuilder) First(dest interface{}, conds ...interface{}) error {

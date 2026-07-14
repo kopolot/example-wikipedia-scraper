@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN subscription_level integer NOT NULL DEFAULT 0;

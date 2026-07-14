@@ -1,27 +1,43 @@
 package http
 
 import (
-	repoInterface "example-wikipedia-scraper/internal/interfaces/repository"
+	serviceInterfaces "example-wikipedia-scraper/internal/interfaces/service"
 	"example-wikipedia-scraper/internal/model"
+	"example-wikipedia-scraper/internal/policy"
 	"errors"
 )
-
-const MaxFiltersPerUser = 10
 
 var (
 	ErrNoRecordFound    = errors.New("no record found")
 	ErrPermissionDenied = errors.New("permission denied")
-	ErrFilterLimit      = errors.New("maximum number of filters reached")
 )
 
 type UserWantedPagesFiltersPolicy struct {
-	filterRepo repoInterface.UserWantedPagesFilterRepositoryInterface
+	subscriptionLevelPolicy *policy.SubscriptionLevelPolicy
 }
 
 func NewUserWantedPagesFiltersPolicy(
-	filterRepo repoInterface.UserWantedPagesFilterRepositoryInterface,
+	subscriptionService serviceInterfaces.SubscriptionServiceInterface,
 ) *UserWantedPagesFiltersPolicy {
-	return &UserWantedPagesFiltersPolicy{filterRepo: filterRepo}
+	return &UserWantedPagesFiltersPolicy{
+		subscriptionLevelPolicy: policy.NewSubscriptionLevelPolicy(subscriptionService),
+	}
+}
+
+func (p *UserWantedPagesFiltersPolicy) CanUpdate(user *model.User, filter *model.UserWantedPagesFilter) error {
+	if user == nil || filter == nil {
+		return ErrNoRecordFound
+	}
+	if user.Role == model.RoleAdmin {
+		return nil
+	}
+	if user.ID != filter.UserID {
+		return ErrPermissionDenied
+	}
+	if err := p.subscriptionLevelPolicy.CanDoPremiumAction(user); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *UserWantedPagesFiltersPolicy) CanView(user *model.User, filter *model.UserWantedPagesFilter) error {
@@ -41,27 +57,16 @@ func (p *UserWantedPagesFiltersPolicy) CanCreate(user *model.User, _ *model.User
 	if user == nil {
 		return ErrNoRecordFound
 	}
-	count, err := p.filterRepo.CountBy("user_id = ?", user.ID)
-	if err != nil {
+	if err := p.subscriptionLevelPolicy.CanCreateUserWantedPagesFilter(user); err != nil {
 		return err
 	}
-	if count >= MaxFiltersPerUser {
-		return ErrFilterLimit
-	}
 	return nil
-}
-
-func (p *UserWantedPagesFiltersPolicy) CanUpdate(user *model.User, filter *model.UserWantedPagesFilter) error {
-	return p.CanView(user, filter)
 }
 
 func (p *UserWantedPagesFiltersPolicy) CanDelete(user *model.User, filter *model.UserWantedPagesFilter) error {
-	return p.CanView(user, filter)
+	return p.CanUpdate(user, filter)
 }
 
 func (p *UserWantedPagesFiltersPolicy) CanGetFilteredPages(user *model.User, _ *model.UserWantedPagesFilter) error {
-	if user == nil {
-		return ErrNoRecordFound
-	}
-	return nil
+	return p.subscriptionLevelPolicy.CanDoPremiumAction(user)
 }

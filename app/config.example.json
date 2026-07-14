@@ -26,6 +26,13 @@
         "password": "password",
         "vhost": ""
     },
+    "redis": {
+        "host": "redis",
+        "port": 6379,
+        "password": "",
+        "db": 0,
+        "default_ttl_seconds": 86400
+    },
     "scraper_settings": {
         "validate_pages_interval": 1800000,
         "validate_pages_cooldown": 10000,
@@ -43,6 +50,7 @@
         {
             "name": "wikipedia.pl",
             "url": "https://pl.wikipedia.org",
+            "proxy_url": "",
             "enabled": true,
             "workers": [
                 {
@@ -91,5 +99,11 @@
     },
     "notifier": {
         "worker_count": 5
-    }
+    },
+    "payment_methods": [
+        {
+            "name": "example",
+            "enabled": true
+        }
+    ]
 }

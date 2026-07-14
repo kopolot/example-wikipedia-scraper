@@ -190,3 +190,8 @@ func (g *MockQueryBuilder) Group(column string) db.QueryBuilder {
 	g.Called(column)
 	return g
 }
+
+func (g *MockQueryBuilder) Transaction(fn func(tx db.QueryBuilder) error) error {
+	args := g.Called(fn)
+	return args.Error(0)
+}

@@ -12,25 +12,28 @@ import (
 )
 
 type UserWantedFiltersApiModule struct {
-	api                        api.ApiInterface
-	userWantedPagesFilterRepo  repository.UserWantedPagesFilterRepositoryInterface
-	pageFilterService          service.PageFilterServiceInterface
+	api                       api.ApiInterface
+	userWantedPagesFilterRepo repository.UserWantedPagesFilterRepositoryInterface
+	pageFilterService         service.PageFilterServiceInterface
+	subscriptionService       service.SubscriptionServiceInterface
 }
 
 func NewUserWantedFiltersApiModule(
 	api api.ApiInterface,
 	userWantedPagesFilterRepo repository.UserWantedPagesFilterRepositoryInterface,
 	pageFilterService service.PageFilterServiceInterface,
+	subscriptionService service.SubscriptionServiceInterface,
 ) *UserWantedFiltersApiModule {
 	return &UserWantedFiltersApiModule{
 		api:                       api,
 		userWantedPagesFilterRepo: userWantedPagesFilterRepo,
 		pageFilterService:         pageFilterService,
+		subscriptionService:       subscriptionService,
 	}
 }
 
 func (a *UserWantedFiltersApiModule) GetRoutes() []*types.Route {
-	policy := httpPolicy.NewUserWantedPagesFiltersPolicy(a.userWantedPagesFilterRepo)
+	policy := httpPolicy.NewUserWantedPagesFiltersPolicy(a.subscriptionService)
 	return []*types.Route{
 		{
 			Method:      "GET",

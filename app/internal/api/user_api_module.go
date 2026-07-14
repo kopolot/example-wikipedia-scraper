@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	apiMiddleware "example-wikipedia-scraper/internal/api/middleware"
 	"example-wikipedia-scraper/internal/dto"
 	apiInterfaces "example-wikipedia-scraper/internal/interfaces/api"
 	"example-wikipedia-scraper/internal/interfaces/auth"
@@ -10,29 +11,39 @@ import (
 	"example-wikipedia-scraper/internal/model"
 	types "example-wikipedia-scraper/internal/types/api"
 	"net/http"
+	"slices"
 	"strconv"
 )
 
 type UserApiModule struct {
-	userRepo    repository.UserRepositoryInterface
-	userService serviceInterfaces.UserServiceInterface
-	api         apiInterfaces.ApiInterface
+	userRepo            repository.UserRepositoryInterface
+	userService         serviceInterfaces.UserServiceInterface
+	api                 apiInterfaces.ApiInterface
+	subscriptionService serviceInterfaces.SubscriptionServiceInterface
 }
 
-func NewUserApiModule(userRepo repository.UserRepositoryInterface, userService serviceInterfaces.UserServiceInterface, api apiInterfaces.ApiInterface) *UserApiModule {
+func NewUserApiModule(
+	userRepo repository.UserRepositoryInterface,
+	userService serviceInterfaces.UserServiceInterface,
+	api apiInterfaces.ApiInterface,
+	subscriptionService serviceInterfaces.SubscriptionServiceInterface,
+) *UserApiModule {
 	return &UserApiModule{
-		userRepo:    userRepo,
-		userService: userService,
-		api:         api,
+		userRepo:            userRepo,
+		userService:         userService,
+		api:                 api,
+		subscriptionService: subscriptionService,
 	}
 }
 
 func (a *UserApiModule) GetRoutes() []*types.Route {
 	return []*types.Route{
 		{
-			Method:  "POST",
-			Path:    "/",
-			Handler: a.createUser,
+			Method:           "POST",
+			Path:             "/",
+			Handler:          a.createUser,
+			Middlewares:      []types.Middleware{apiMiddleware.IdempotentMiddleware},
+			AfterMiddlewares: []types.AfterMiddleware{apiMiddleware.CacheIdempotentResponse},
 		},
 		{
 			Method:      "GET",
@@ -47,9 +58,11 @@ func (a *UserApiModule) GetRoutes() []*types.Route {
 			Middlewares: []types.Middleware{a.api.AuthenticateMiddleware, a.AuthorizeUserMiddleware},
 		},
 		{
-			Method:  "POST",
-			Path:    "/login",
-			Handler: a.loginUser,
+			Method:           "POST",
+			Path:             "/login",
+			Handler:          a.loginUser,
+			Middlewares:      []types.Middleware{apiMiddleware.IdempotentMiddleware},
+			AfterMiddlewares: []types.AfterMiddleware{apiMiddleware.CacheIdempotentResponse},
 		},
 		{
 			Method:      "POST",
@@ -82,6 +95,18 @@ func (a *UserApiModule) GetRoutes() []*types.Route {
 			Method:      "POST",
 			Path:        "/logout_all",
 			Handler:     a.logoutAll,
+			Middlewares: []types.Middleware{a.api.AuthenticateMiddleware},
+		},
+		{
+			Method:      "GET",
+			Path:        "/subscription_levels",
+			Handler:     a.getSubscriptionLevelProducts,
+			Middlewares: []types.Middleware{a.api.AuthenticateMiddleware},
+		},
+		{
+			Method:      "GET",
+			Path:        "/subscription_levels/:level",
+			Handler:     a.getSubscriptionLevel,
 			Middlewares: []types.Middleware{a.api.AuthenticateMiddleware},
 		},
 	}
@@ -390,6 +415,72 @@ func (a *UserApiModule) logoutAll(request *types.ApiRequest) *types.ApiResponse 
 		StatusCode: http.StatusOK,
 		Body: &types.ApiResponseBody{
 			Success: true,
+		},
+	}
+}
+
+func (a *UserApiModule) getSubscriptionLevelProducts(request *types.ApiRequest) *types.ApiResponse {
+	subscriptionLevelProducts, err := a.subscriptionService.GetSubscriptionLevelProducts()
+	if err != nil {
+		return InternalErrorResponse()
+	}
+	result := make(map[uint]map[uint]*model.SubscriptionLevelProduct)
+	for _, product := range subscriptionLevelProducts {
+		if product.SubscriptionLevel.Level == 0 {
+			continue
+		}
+		id := uint(product.SubscriptionLevel.Level)
+		resultMap := result[id]
+		if resultMap == nil {
+			resultMap = make(map[uint]*model.SubscriptionLevelProduct)
+			result[id] = resultMap
+		}
+		intDsc, err := strconv.Atoi(product.Product.Description)
+		if err != nil {
+			return InternalErrorResponse()
+		}
+		resultMap[uint(intDsc)] = product
+	}
+	sortedResult := make(map[uint][]*model.SubscriptionLevelProduct)
+	for levelID, productsMap := range result {
+		var keys []uint
+		for k := range productsMap {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		var sortedProducts []*model.SubscriptionLevelProduct
+		for _, k := range keys {
+			sortedProducts = append(sortedProducts, productsMap[k])
+		}
+		sortedResult[levelID] = sortedProducts
+	}
+	return &types.ApiResponse{
+		StatusCode: http.StatusOK,
+		Body: &types.ApiResponseBody{
+			Success: true,
+			Data:    sortedResult,
+		},
+	}
+}
+
+func (a *UserApiModule) getSubscriptionLevel(request *types.ApiRequest) *types.ApiResponse {
+	subscriptionLevelStr := request.PathParams["level"]
+	subscriptionLevel, err := strconv.Atoi(subscriptionLevelStr)
+	if err != nil {
+		return BadRequestResponseWithMsg("Invalid subscription level")
+	}
+	subscriptionLevelData, err := a.subscriptionService.GetRepository().FindOneBy("level = ?", subscriptionLevel)
+	if err != nil {
+		return InternalErrorResponse()
+	}
+	if subscriptionLevelData == nil {
+		return NotFoundResponse("Subscription level not found")
+	}
+	return &types.ApiResponse{
+		StatusCode: http.StatusOK,
+		Body: &types.ApiResponseBody{
+			Success: true,
+			Data:    subscriptionLevelData,
 		},
 	}
 }
