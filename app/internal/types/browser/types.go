@@ -31,6 +31,8 @@ type FetchOptions struct {
 	SaveHeaders            bool
 	AllowAssets            bool
 	WaitAntiBotBootstrap   bool
+	WarmupURL              string
+	ConsentDismissScript   string
 	BodyGetSleep           time.Duration
 }
 
@@ -93,6 +95,18 @@ func WithBodyGetSleep(sleep time.Duration) FetchOption {
 func WithWaitAntiBotBootstrap(wait bool) FetchOption {
 	return func(o *FetchOptions) {
 		o.WaitAntiBotBootstrap = wait
+	}
+}
+
+func WithWarmupURL(url string) FetchOption {
+	return func(o *FetchOptions) {
+		o.WarmupURL = url
+	}
+}
+
+func WithConsentDismissScript(script string) FetchOption {
+	return func(o *FetchOptions) {
+		o.ConsentDismissScript = script
 	}
 }
 

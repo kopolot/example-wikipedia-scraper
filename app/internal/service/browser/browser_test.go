@@ -2,7 +2,9 @@ package browser
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -295,7 +297,7 @@ func TestBrowserIsManagedChallenge(t *testing.T) {
 	t.Run("detect just a moment only when cloudflare also present", func(t *testing.T) {
 		withCF := &types.BrowserResponse{
 			URL:  "https://example.com/offers",
-			Body: "<html><title>Just a moment...</title><p>Powered by cloudflare</p></html>",
+			Body: "<html><title>Just a moment...</title><p>Powered by cloudflare</p><script>__cf_chl</script></html>",
 		}
 		assert.True(t, b.isManagedChallenge(withCF))
 
@@ -324,7 +326,7 @@ func TestBrowserGetChallengeResolveWindow(t *testing.T) {
 
 	t.Run("uses default when timeout missing", func(t *testing.T) {
 		window := b.getChallengeResolveWindow(types.FetchOptions{})
-		assert.Equal(t, 25*time.Second, window)
+		assert.Equal(t, 60*time.Second, window)
 	})
 
 	t.Run("respects lower bound", func(t *testing.T) {
@@ -339,7 +341,7 @@ func TestBrowserGetChallengeResolveWindow(t *testing.T) {
 
 	t.Run("respects upper bound", func(t *testing.T) {
 		window := b.getChallengeResolveWindow(types.FetchOptions{Timeout: 2 * time.Minute})
-		assert.Equal(t, 45*time.Second, window)
+		assert.Equal(t, 60*time.Second, window)
 	})
 }
 
@@ -517,4 +519,27 @@ func TestCloudflareResolving(t *testing.T) {
 	err = os.WriteFile(fileName, []byte(body), 0644)
 	require.NoError(t, err, "Failed to write response body to file for debugging")
 	fmt.Printf("Saved cloudflare_resolving response to %s for debugging\n", fileName)
+}
+
+func TestBrowser_shouldResetSessionContext(t *testing.T) {
+	b := &Browser{}
+
+	assert.False(t, b.shouldResetSessionContext(nil))
+	assert.True(t, b.shouldResetSessionContext(types.ErrFetchRatelimit))
+	assert.True(t, b.shouldResetSessionContext(types.ErrFetchManagedChallenge))
+	assert.True(t, b.shouldResetSessionContext(context.DeadlineExceeded))
+	assert.True(t, b.shouldResetSessionContext(errors.New("target closed")))
+	assert.False(t, b.shouldResetSessionContext(errors.New("some other error")))
+}
+
+func TestBrowser_looksLikeProtectionResponse(t *testing.T) {
+	b := &Browser{}
+
+	assert.True(t, b.looksLikeProtectionResponse(nil))
+	assert.True(t, b.looksLikeProtectionResponse(&types.BrowserResponse{Body: ""}))
+	assert.True(t, b.looksLikeProtectionResponse(&types.BrowserResponse{Body: "<html>challenges.cloudflare.com</html>"}))
+	assert.True(t, b.looksLikeProtectionResponse(&types.BrowserResponse{Body: "<html>access denied</html>"}))
+	assert.False(t, b.looksLikeProtectionResponse(&types.BrowserResponse{
+		Body: strings.Repeat("a", 600),
+	}))
 }

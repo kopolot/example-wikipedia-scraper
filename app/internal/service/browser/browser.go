@@ -38,6 +38,7 @@ type Browser struct {
 	allocCtx       context.Context
 	chromeDpCtx    context.Context
 	config         *config.BrowserSettings
+	proxyURL       string
 	allocCancel    context.CancelFunc
 	chromeDpCancel context.CancelFunc
 	initMutex      sync.Mutex
@@ -45,12 +46,24 @@ type Browser struct {
 	initialized    bool
 }
 
-func NewBrowser(cfg *config.BrowserSettings, log interfaces.LoggerInterface) *Browser {
-	return &Browser{
+type BrowserOption func(*Browser)
+
+func WithProxyURL(proxyURL string) BrowserOption {
+	return func(b *Browser) {
+		b.proxyURL = NormalizeProxyURL(proxyURL)
+	}
+}
+
+func NewBrowser(cfg *config.BrowserSettings, log interfaces.LoggerInterface, opts ...BrowserOption) *Browser {
+	b := &Browser{
 		config:   cfg,
 		logger:   log,
 		cdpSlots: make(chan struct{}, defaultMaxConcurrentCDP),
 	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b
 }
 
 func (b *Browser) GetConfig() config.BrowserSettings {
@@ -68,8 +81,12 @@ func (b *Browser) InitBrowser() error {
 	b.initMutex.Lock()
 	defer b.initMutex.Unlock()
 	// ctx := context.Background()
-	engineSettings := b.config.GetBrowserEngineSettings()
+	engineSettings := cloneEngineSettings(b.config.GetBrowserEngineSettings())
 	b.applyDefaultEngineFlags(engineSettings)
+	if b.proxyURL != "" {
+		engineSettings["proxy-server"] = b.proxyURL
+		b.logger.Info("Using browser proxy", "proxy", b.proxyURL)
+	}
 	opts := make([]chromedp.ExecAllocatorOption, 0)
 	// opts = append(chromedp.DefaultExecAllocatorOptions[:], opts...)
 	// opts := []chromedp.ExecAllocatorOption{
@@ -205,6 +222,9 @@ func (b *Browser) shouldResetSessionContext(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, types.ErrFetchRatelimit) || errors.Is(err, types.ErrFetchManagedChallenge) {
+		return true
+	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return true
 	}
@@ -283,34 +303,63 @@ func (b *Browser) FetchPageWithRetry(browserSession interfaces.BrowserSessionInt
 	options := browserSession.GetOptions()
 	url := browserSession.GetURL()
 	var lastErr error
-	var lastFetchErr error
+	var lastRetryErr error
 	for attempt := range options.Retries {
-		if attempt > 0 && b.shouldResetSessionContext(lastFetchErr) {
+		if attempt > 0 && b.shouldResetSessionContext(lastRetryErr) {
 			if err := b.ResetSessionContext(browserSession); err != nil {
 				b.logger.Warn("failed to reset browser session before retry", "url", url, "err", err)
 			}
 		}
 		response, fetchErr := b.runChromeDpWithActions(browserSession)
-		lastFetchErr = fetchErr
 		err := b.handleFetchResult(response, url, fetchErr)
+		lastRetryErr = err
+		if fetchErr != nil {
+			lastRetryErr = fetchErr
+		}
 		switch {
 		case errors.Is(err, types.ErrFetchPage):
 			time.Sleep(1 * time.Second)
 		case errors.Is(err, types.ErrFetchRatelimit):
+			b.logger.Warn("protection/ratelimit detected, attempting recovery", "url", url, "attempt", attempt+1, "max_attempts", options.Retries)
+			if solveErr := b.tryResolveManagedChallenge(browserSession, url, options); solveErr == nil {
+				response, fetchErr = b.runChromeDpWithActions(browserSession)
+				err = b.handleFetchResult(response, url, fetchErr)
+				if err == nil {
+					return nil
+				}
+				lastRetryErr = err
+				if fetchErr != nil {
+					lastRetryErr = fetchErr
+				}
+			}
+			if attempt+1 < options.Retries {
+				if resetErr := b.ResetSessionContext(browserSession); resetErr != nil {
+					b.logger.Warn("failed to reset browser session after protection", "url", url, "err", resetErr)
+				}
+			}
 			time.Sleep(b.getRetryCooldown(options))
 		case errors.Is(err, types.ErrFetchManagedChallenge):
 			b.logger.Warn("managed challenge detected, attempting to resolve", "url", url)
 			solveErr := b.tryResolveManagedChallenge(browserSession, url, options)
 			if solveErr == nil {
 				response, fetchErr = b.runChromeDpWithActions(browserSession)
-				lastFetchErr = fetchErr
 				err = b.handleFetchResult(response, url, fetchErr)
 				if err == nil {
 					return nil
 				}
+				lastRetryErr = err
+				if fetchErr != nil {
+					lastRetryErr = fetchErr
+				}
 			} else {
 				b.logger.Warn("failed to resolve managed challenge", "url", url, "err", solveErr)
 			}
+			if attempt+1 < options.Retries {
+				if resetErr := b.ResetSessionContext(browserSession); resetErr != nil {
+					b.logger.Warn("failed to reset browser session after challenge", "url", url, "err", resetErr)
+				}
+			}
+			time.Sleep(b.getRetryCooldown(options))
 		case errors.Is(err, types.ErrFetchTargetServer):
 			time.Sleep(1 * time.Second)
 		case errors.Is(err, nil):
@@ -348,30 +397,66 @@ func (b *Browser) tryResolveManagedChallenge(browserSession interfaces.BrowserSe
 	ctx := browserSession.GetContext()
 	deadline := time.Now().Add(b.getChallengeResolveWindow(options))
 	for attempt := 1; time.Now().Before(deadline); attempt++ {
-		// Na pierwszej iteracji daj Turnstile'owi czas na auto-solve przed próbą interakcji
 		if attempt == 1 {
-			time.Sleep(3 * time.Second)
+			time.Sleep(5 * time.Second)
+		}
+
+		if cleared, clearErr := b.isChallengeCleared(ctx); clearErr == nil && cleared {
+			b.logger.Info("managed challenge cleared", "url", url, "attempt", attempt)
+			return nil
 		}
 
 		didInteract, interactErr := b.performManagedChallengeInteraction(ctx)
 		if interactErr != nil {
 			b.logger.Warn("managed challenge interaction failed", "url", url, "attempt", attempt, "err", interactErr)
-			break
+		} else if didInteract {
+			b.logger.Debug("managed challenge interaction sent", "url", url, "attempt", attempt)
 		}
 
-		waitDuration := time.Duration(1300+rand.Intn(900)) * time.Millisecond
-		if didInteract {
-			waitDuration = time.Duration(2100+rand.Intn(1300)) * time.Millisecond
-			time.Sleep(waitDuration)
-			return nil
+		pollDeadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(pollDeadline) && time.Now().Before(deadline) {
+			if cleared, clearErr := b.isChallengeCleared(ctx); clearErr == nil && cleared {
+				b.logger.Info("managed challenge cleared after interaction", "url", url, "attempt", attempt)
+				return nil
+			}
+			time.Sleep(800 * time.Millisecond)
 		}
 	}
 	b.logger.Warn("managed challenge unresolved after deadline", "url", url)
 	return types.ErrFetchManagedChallenge
 }
 
+func (b *Browser) isChallengeCleared(ctx context.Context) (bool, error) {
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+
+	cookies, err := network.GetCookies().Do(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, cookie := range cookies {
+		if cookie.Name == "cf_clearance" {
+			return true, nil
+		}
+	}
+
+	var html string
+	if err := chromedp.Run(ctx, chromedp.Evaluate(`document.documentElement.outerHTML`, &html)); err != nil {
+		return false, err
+	}
+	response := &types.BrowserResponse{Body: html}
+	if b.isManagedChallenge(response) {
+		return false, nil
+	}
+	if b.looksLikeProtectionResponse(response) {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (b *Browser) getChallengeResolveWindow(options types.FetchOptions) time.Duration {
-	const defaultWindow = 25 * time.Second
+	const defaultWindow = 60 * time.Second
 	if options.Timeout <= 0 {
 		return defaultWindow
 	}
@@ -379,8 +464,8 @@ func (b *Browser) getChallengeResolveWindow(options types.FetchOptions) time.Dur
 	if window < 12*time.Second {
 		return 12 * time.Second
 	}
-	if window > 45*time.Second {
-		return 45 * time.Second
+	if window > 90*time.Second {
+		return 90 * time.Second
 	}
 	return window
 }
@@ -405,9 +490,9 @@ func (b *Browser) performManagedChallengeInteraction(ctx context.Context) (bool,
 			return err
 		}
 
-		iframe = findIframe(root)
+		iframe = findTurnstileIframe(root)
 		if iframe == nil {
-			return fmt.Errorf("iframe not found")
+			return fmt.Errorf("turnstile iframe not found")
 		}
 
 		// fmt.Println("iframe node id:", iframe.NodeID)
@@ -415,7 +500,10 @@ func (b *Browser) performManagedChallengeInteraction(ctx context.Context) (bool,
 	}))
 
 	if err != nil {
-		panic(err)
+		if strings.Contains(err.Error(), "turnstile iframe not found") {
+			return false, nil
+		}
+		return false, err
 	}
 
 	err = b.RunActions(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
@@ -452,7 +540,43 @@ func (b *Browser) performManagedChallengeInteraction(ctx context.Context) (bool,
 	return true, nil
 }
 
+func findTurnstileIframe(n *cdp.Node) *cdp.Node {
+	if n.NodeName == "IFRAME" {
+		src := nodeAttribute(n, "src")
+		lowerSrc := strings.ToLower(src)
+		if strings.Contains(lowerSrc, "challenges.cloudflare.com") ||
+			strings.Contains(lowerSrc, "turnstile") ||
+			strings.Contains(lowerSrc, "cdn-cgi/challenge-platform") {
+			return n
+		}
+	}
+
+	for _, child := range n.Children {
+		if found := findTurnstileIframe(child); found != nil {
+			return found
+		}
+	}
+	for _, shadow := range n.ShadowRoots {
+		if found := findTurnstileIframe(shadow); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func nodeAttribute(n *cdp.Node, name string) string {
+	for i := 0; i+1 < len(n.Attributes); i += 2 {
+		if n.Attributes[i] == name {
+			return n.Attributes[i+1]
+		}
+	}
+	return ""
+}
+
 func findIframe(n *cdp.Node) *cdp.Node {
+	if found := findTurnstileIframe(n); found != nil {
+		return found
+	}
 	if n.NodeName == "IFRAME" {
 		return n
 	}
@@ -514,6 +638,39 @@ func (b *Browser) isManagedChallenge(response *types.BrowserResponse) bool {
 	return false
 }
 
+func (b *Browser) looksLikeProtectionResponse(response *types.BrowserResponse) bool {
+	if response == nil {
+		return true
+	}
+	if b.isManagedChallenge(response) {
+		return true
+	}
+	body := strings.TrimSpace(response.GetBody())
+	if body == "" || len(body) < 512 {
+		return true
+	}
+	lower := strings.ToLower(body)
+	protectionMarkers := []string{
+		"access denied",
+		"captcha",
+		"akamai",
+		"please enable javascript",
+		"bot detection",
+		"cf-browser-verification",
+		"_abck",
+		"bm_sz",
+		"sec-cp-challenge",
+		"perimeterx",
+		"datadome",
+	}
+	for _, marker := range protectionMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func (b *Browser) handleFetchError(response *types.BrowserResponse, url string, err error) error {
 	switch {
 	case response == nil:
@@ -538,7 +695,10 @@ func (b *Browser) handleFetchStatusCode(response *types.BrowserResponse) error {
 		return nil
 	case code == 404 || code == 410:
 		return types.ErrFetchPageNotFound
-	case code == 403 || code == 429:
+	case code == 403:
+		b.logger.Warn("protection response detected, attempting challenge recovery", "url", response.URL, "status", response.GetStatusCode())
+		return types.ErrFetchManagedChallenge
+	case code == 429:
 		b.logger.Warn("ratelimit reached, waiting before retry", "url", response.URL, "status", response.GetStatusCode())
 		return types.ErrFetchRatelimit
 	case code >= 500 && code < 600:
@@ -644,6 +804,19 @@ func (b *Browser) buildActionList(url, userAgent string, options types.FetchOpti
 	// 	b.logger.Warn("could not read stealth script, proceeding without it", "err", err)
 	// }
 	// stealthScript := string(stealthScriptContent)
+	if options.WarmupURL != "" && options.WarmupURL != url {
+		actions = append(actions,
+			chromedp.Navigate(options.WarmupURL),
+			chromedp.WaitVisible("body", chromedp.ByQuery),
+			chromedp.Sleep(time.Duration(1500+rand.Intn(1500))*time.Millisecond),
+		)
+		if options.WaitAntiBotBootstrap {
+			actions = append(actions, antiBotBootstrapAction())
+		}
+		if options.ConsentDismissScript != "" {
+			actions = append(actions, consentDismissAction(options.ConsentDismissScript))
+		}
+	}
 	actions = append(actions,
 		// to wywala ze mam headless
 		// chromedp.ActionFunc(func(ctx context.Context) error {
@@ -680,10 +853,32 @@ func (b *Browser) buildActionList(url, userAgent string, options types.FetchOpti
 	if options.WaitAntiBotBootstrap {
 		actions = append(actions, antiBotBootstrapAction())
 	}
+	if options.ConsentDismissScript != "" {
+		actions = append(actions, consentDismissAction(options.ConsentDismissScript))
+	}
 	if options.SaveBody {
 		actions = append(actions, chromedp.ActionFunc(func(ctx context.Context) error { return nil }))
 	}
 	return actions
+}
+
+func consentDismissAction(script string) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		var dismissed bool
+		deadline := time.Now().Add(12 * time.Second)
+		for time.Now().Before(deadline) {
+			if err := chromedp.Evaluate(script, &dismissed).Do(ctx); err != nil {
+				return err
+			}
+			if dismissed {
+				return chromedp.Sleep(500 * time.Millisecond).Do(ctx)
+			}
+			if err := chromedp.Sleep(250 * time.Millisecond).Do(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (b *Browser) resolveUserAgent(options types.FetchOptions) string {

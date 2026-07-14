@@ -14,7 +14,7 @@ var (
 	initOnce        sync.Once
 )
 
-func NewScraperRegistry(browser interfaces.BrowserInterface, cfg config.ConfigInterface, loggerInstance interfaces.LoggerInterface) map[string]ScraperFactory {
+func NewScraperRegistry(provider interfaces.BrowserProvider, cfg config.ConfigInterface, loggerInstance interfaces.LoggerInterface) map[string]ScraperFactory {
 	initOnce.Do(func() {
 		mappedSites := func(cfg config.ConfigInterface) map[string]*config.SiteConfig {
 			sites := make(map[string]*config.SiteConfig)
@@ -28,7 +28,8 @@ func NewScraperRegistry(browser interfaces.BrowserInterface, cfg config.ConfigIn
 				return scrapers.NewExampleScraper(url)
 			},
 			"wikipedia.pl": func(url string) interfaces.ScraperInterface {
-				return scrapers.NewWikipediaPLScraper(url, browser, mappedSites["wikipedia.pl"], loggerInstance)
+				site := mappedSites["wikipedia.pl"]
+				return scrapers.NewWikipediaPLScraper(url, provider.GetForSite(site), site, loggerInstance)
 			},
 		}
 	})

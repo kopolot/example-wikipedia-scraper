@@ -14,6 +14,7 @@ import (
 	"example-wikipedia-scraper/internal/service/browser"
 	"example-wikipedia-scraper/internal/service/scraper/scrapers"
 	types "example-wikipedia-scraper/internal/types/scraper"
+	"hash/fnv"
 	"sync"
 	"time"
 )
@@ -21,7 +22,7 @@ import (
 // ScraperService orkiestruje proces scrapowania (facade pattern)
 type ScraperService struct {
 	config              config.ConfigInterface
-	browser             interfaces.BrowserInterface
+	browserPool         *browser.BrowserPool
 	logger              interfaces.LoggerInterface
 	scraperMgr          *ScraperManager
 	queueProcessor      *QueueProcessor
@@ -60,22 +61,26 @@ func NewScraperService(
 }
 
 func (s *ScraperService) Init() error {
-	s.browser = browser.NewBrowser(s.config.GetBrowserSettings(), s.logger)
-	scraperRegistry := registry.NewScraperRegistry(s.browser, s.config, s.logger)
-
-	if err := s.browser.InitBrowser(); err != nil {
-		s.logger.Error("Error initializing browser", "err", err)
+	s.browserPool = browser.NewBrowserPool(s.config.GetBrowserSettings(), s.config.GetSitesConfig(), s.logger)
+	if err := s.browserPool.Init(); err != nil {
+		s.logger.Error("Error initializing browser pool", "err", err)
 		return err
 	}
 
+	scraperRegistry := registry.NewScraperRegistry(s.browserPool, s.config, s.logger)
 	s.scraperMgr.RegisterScrapers(scraperRegistry)
 	scrapers.SetSiteHealth(s.scraperMgr.GetSiteHealth())
-	s.failedPageProcessor.browser = s.browser
 	s.failedPageProcessor.RegisterHandlers()
 
 	s.queueProcessor.Start()
 
 	return nil
+}
+
+func scrapeStartupDelay(siteName string) time.Duration {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(siteName))
+	return time.Duration(h.Sum32()%8000) * time.Millisecond
 }
 
 func (s *ScraperService) RunScrapers(opts ...types.ScrapeOption) {
@@ -84,6 +89,7 @@ func (s *ScraperService) RunScrapers(opts ...types.ScrapeOption) {
 		s.scrapingWg.Add(1)
 		go func(name string) {
 			defer s.scrapingWg.Done()
+			time.Sleep(scrapeStartupDelay(name))
 			s.runScraper(name, opts...)
 		}(siteName)
 	}
@@ -95,10 +101,11 @@ func (s *ScraperService) RunScrapers(opts ...types.ScrapeOption) {
 
 func (s *ScraperService) RunScrapersInContinuousLoop(opts ...types.ScrapeOption) {
 	s.logger.Info("Starting scrapers in continuous loop...")
-	scraperRegistry := registry.NewScraperRegistry(s.browser, s.config, s.logger)
+	scraperRegistry := registry.NewScraperRegistry(s.browserPool, s.config, s.logger)
 
 	for siteName := range s.scraperMgr.GetAll() {
 		go func(name string) {
+			time.Sleep(scrapeStartupDelay(name))
 			for {
 				if s.scraperMgr.GetSiteHealth().IsCircuitOpen(name) {
 					s.scraperMgr.GetSiteHealth().BeforeAttempt(name)
@@ -125,7 +132,6 @@ func (s *ScraperService) runScraper(siteName string, opts ...types.ScrapeOption)
 	failedPagesChan := make(chan *dto.UnprocessedPageDTO, 1000)
 	defer close(failedPagesChan)
 
-	// Goroutine obsługująca nieudane oferty
 	go func() {
 		for failedPage := range failedPagesChan {
 			s.failedPageProcessor.SaveFailedPage(failedPage)
@@ -188,8 +194,8 @@ func (s *ScraperService) Shutdown() {
 	s.logger.Info("Shutting down scraper service")
 	close(s.stopChan)
 	s.queueProcessor.Stop()
-	if s.browser != nil {
-		s.browser.Close()
+	if s.browserPool != nil {
+		s.browserPool.Close()
 	}
 	s.logger.Info("Scraper service shutdown complete")
 }

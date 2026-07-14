@@ -147,12 +147,15 @@ func (s *BaseScraper) buildBrowserOptions() error {
 		t := s.getBrowserOptions().Timeout
 		timeout = t
 	}
-	config := s.GetConfig()
-	ratelimitCooldown := 10000
-	if config.BlockedCooldown > 0 {
-		ratelimitCooldown = config.BlockedCooldown
-	}
-	s.SetBrowserOptions(browserTypes.WithTimeout(timeout), browserTypes.WithRatelimitCooldown(time.Duration(ratelimitCooldown)*time.Millisecond), browserTypes.WithCookies(options.Cookies...))
+	_ = s.GetConfig()
+	const ratelimitRetryCooldownMs = 12000
+	s.SetBrowserOptions(
+		browserTypes.WithTimeout(timeout),
+		browserTypes.WithRatelimitCooldown(ratelimitRetryCooldownMs*time.Millisecond),
+		browserTypes.WithRetries(7),
+		browserTypes.WithSaveBody(true),
+		browserTypes.WithCookies(options.Cookies...),
+	)
 	return nil
 }
 
