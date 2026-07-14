@@ -1,67 +1,148 @@
 # AGENTS.md
 
-## Cursor Cloud specific instructions
+Instrukcje dla agentów AI (Cursor Cloud, Codex itd.) pracujących nad tym repozytorium.
 
-This project is a Dockerized Wikipedia-scraper app: a Go API + scraper (`app/`), a
-Nuxt 4 dashboard (`frontend/`), PostgreSQL, RabbitMQ, MailHog, Adminer, all behind an
-Nginx reverse proxy on host port **8080**. Everything runs via Docker Compose; there is
-no host-level Go/Node build in normal operation. See `README.md` for the product overview.
+## Kontekst projektu
+
+**Wiki Scraper Newsletter** (`example-wikipedia-scraper`) to **publiczny example** zbudowany na bazie **prywatnego** repozytorium autora o podobnej architekturze (newsletter-scraper: Docker, Go API, scraper, Nuxt). Ten fork:
+
+- używa domeny **Wikipedia `Page`** i filtrów stron,
+- zachowuje wspólną infrastrukturę (RabbitMQ, Redis, subskrypcje, example payment),
+- **nie** zawiera Grafany/Loki ani produkcyjnych integracji płatności.
+
+Właściciel synchronizował zmiany z projektu prywatnego z pomocą **Cursor AI**: diff między repozytoriami, kopiowanie modułów generycznych z zamianą ścieżek modułu Go, ręczna adaptacja modeli pod strony Wikipedia. Przy dalszym syncu portuj tylko infrastrukturę uniwersalną — nie kod z innej domeny biznesowej bez wyraźnej prośby.
+
+Zobacz też [`README.md`](README.md) — sekcja „Pochodzenie kodu”.
+
+---
+
+## Cursor Cloud — środowisko
 
 ### Docker daemon
-- Docker (with `fuse-overlayfs` storage driver and `iptables-legacy`) is installed in the
-  VM image. There is no systemd, so `sudo service docker start` does not work.
-- If `docker info` fails with a socket error, the daemon is not running. Start it in the
-  background (e.g. in a tmux session): `sudo dockerd`. Wait a few seconds, then verify
-  with `sudo docker info`. Use `sudo docker ...` (the `ubuntu` user is in the `docker`
-  group, but the group only applies to newly-started login shells).
+- Docker (z `fuse-overlayfs` i `iptables-legacy`) jest w obrazie VM. Brak systemd — `sudo service docker start` nie działa.
+- Przy błędzie socketa: `sudo dockerd` w tle (np. tmux), potem `sudo docker info`.
+- Używaj `sudo docker ...` jeśli grupa `docker` nie jest aktywna w shellu.
 
-### Bringing up the stack (dev mode)
-- Dev stack: `sudo docker compose -f compose.yaml -f compose.local.yaml up -d`
-  (this is what `bin/run-local` runs, minus the sudo). The `--build` flag is only needed
-  the first time or after Dockerfile changes.
-- If host ports **8080** or **3000** are taken, copy `.env.example` to `.env` and set
-  `NGINX_HTTP_PORT`, `FRONTEND_DEV_PORT`, etc.
-- If `up` fails with a container-name conflict from a previous partial run, run
-  `sudo docker compose -f compose.yaml -f compose.local.yaml down` first, then `up` again.
-- Access points (all through Nginx on `http://localhost:8080`, or your `NGINX_HTTP_PORT`):
-  - Dashboard: `/dashboard/`   API: `/api/`   MailHog: `/mailhog/`
-  - Adminer: `/adminer/`   RabbitMQ mgmt: `/rabbitmq/`
+### Stack dev
+```bash
+sudo docker compose -f compose.yaml -f compose.local.yaml up -d
+```
+(jak `bin/run-local`, bez sudo lokalnie jeśli użytkownik ma grupę docker)
 
-### Backend (Go API) — non-obvious startup
-- The `app` and `scraper` containers do **not** auto-start their processes; both use
-  `sleep infinity`. You must exec in and run them yourself. `air`, `dlv`, `migrate`,
-  `make` are preinstalled.
-- First-run inside the container (`sudo docker compose -f compose.yaml -f compose.local.yaml exec app sh`, then `cd /app`):
-  1. `go mod tidy` (required — `go.sum` is gitignored, so it must be regenerated).
-  2. `go run ./cmd/migrate/main.go` (runs GORM AutoMigrate; the API's own AutoMigrate is
-     commented out, so migrations must be run separately).
-  3. `air` to run the API with hot reload (listens on `:8080` in-container, proxied at `/api/`).
-- Scraper (same stack, `exec scraper sh`): `go mod tidy`, then `air -c .air.scraper.toml`
-  or `go run ./cmd/scraper/main.go`.
-- The frontend container auto-runs `npm install && npm run dev` on startup (see
-  `compose.local.yaml`); just wait for the Nuxt "Vite server warmed up" log.
+- Porty zajęte → `.env` z `.env.example` (`NGINX_HTTP_PORT`, `FRONTEND_DEV_PORT`, …).
+- Konflikt nazw kontenerów → `docker compose ... down`, potem `up`.
+- **Nginx** (domyślnie `:8080`): `/dashboard/`, `/api/`, `/mailhog/`, `/adminer/`, `/rabbitmq/`.
 
-### Config files (gitignored — required to start)
-- `app/config.json` (copy from `app/config.example.json`) and `frontend/.env` (copy from
-  `frontend/.env.example`) must exist or the Go apps `log.Fatal` and the frontend has no
-  API base. The update script recreates them if missing.
+### Usługi w `compose.yaml`
+`app`, `db`, `nginx`, `frontend`, `rabbitmq`, `mailhog`, **`redis`**. API **wymaga** Redis (idempotency) — `cmd/api/main.go` kończy się błędem bez połączenia.
 
-### Auth / email flow
-- New users must verify their email before they can log in (`Login` returns
-  "Email not verified" otherwise). Verification emails are delivered to **MailHog**; open
-  `http://localhost:8080/mailhog/` and use the `verify-email?token=...` link. This is the
-  path to exercise register → verify → login end to end.
+---
 
-### Lint / test / build (per service)
-- Backend build: `make api` inside the `app` container. NOTE: `make build` (and the
-  production `docker/golang/.Dockerfile`) **fail** because `cmd/notify/main.go` does not
-  exist yet (see `TODO.md`); the scraper/notify workers are also not wired into compose.
-- Backend vet: `go vet ./...` (no golangci-lint configured).
-- Backend tests: `go test ./internal/...`. Some unit tests currently fail on `main`
-  (`internal/api`, `internal/service/browser`, `internal/service/scraper`) — these are
-  pre-existing failures, not environment issues. Integration tests under
-  `app/test/integration/` expect a separate `test_db` database and a RabbitMQ `test_user`
-  with vhost `test` (see `config.test.json`), which are not provisioned by default.
-- Frontend: there are **no** `lint`/`test` npm scripts. Run `npx eslint .`,
-  `npx vitest run`, and `npm run build` directly inside the `frontend` container. Several
-  vitest specs and eslint rules currently fail/error on `main` (pre-existing).
+## Backend (Go API) — startup dev
+
+Kontenery `app` i `scraper`: **`sleep infinity`** — procesy uruchamiasz ręcznie.
+
+W kontenerze `app` (`exec app sh`, `cd /app`):
+
+1. `go mod tidy` — `go.sum` jest gitignored
+2. `go run ./cmd/migrate/main.go` — migracje SQL **000001–000009** (nie GORM AutoMigrate w API)
+3. `air` — API na `:8080`, proxowane jako `/api/`
+
+Scraper: `exec scraper sh` → `go mod tidy` → `air -c .air.scraper.toml` lub `go run ./cmd/scraper/main.go`.
+
+Frontend (compose.local): auto `npm install && npm run dev` — czekaj na log Vite.
+
+---
+
+## Pliki konfiguracyjne (gitignored)
+
+| Plik | Źródło |
+|------|--------|
+| `app/config.json` | `app/config.example.json` |
+| `frontend/.env` | `frontend/.env.example` |
+
+**Wymagane w `config.json` dla pełnego API:**
+- `redis` (host `redis`, port 6379)
+- `payment_methods` — co najmniej `{ "name": "example", "enabled": true }`
+- `rabbitmq`, `db`, `api`, `mailer`
+
+Brak `config.json` → `log.Fatal` przy starcie.
+
+---
+
+## Architektura API (po refactorze)
+
+- **`internal/api/container.go`** — DI repozytoriów i serwisów, `LoadModules()`
+- **Moduły:** `UserApiModule`, `PageApiModule`, `UserWantedFiltersApiModule`, `OrderApiModule`
+- **Idempotency:** `middleware/idempotent_middleware.go` + Redis (`internal/cache/`)
+- **Routing:** `routing.go` (`joinRoutePath`), `response_writer.go` (redirecty 3xx)
+- Frontend wysyła `X-Idempotent-Token` (`useApi.ts`, `uuid`)
+
+### Endpointy subskrypcji / płatności
+- `GET /user/subscription_levels` — plany + produkty (auth)
+- `GET /user/subscription_levels/:level`
+- `POST /order/` — utworzenie zamówienia + example payment (auth, idempotent)
+- `GET /order/payment_methods`
+- `PATCH /order/payment/:method/notify` — webhook PSP
+- `GET /order/example_payment/:paymentId` — stub akceptacji
+
+Kolejka `order_payment_notfied` → `SubscriptionService.AddSubscriptionTime`.
+
+### Filtry stron
+- Policy w `policy/http/user_wanted_pages_filters_policy.go` — **wymaga aktywnej subskrypcji** (Basic: 3 filtry, Premium: 10).
+- Serwis: `PageFilterService`, repo: `UserWantedPagesFilterRepository`.
+
+---
+
+## Scraper
+
+- **`BrowserPool`** + opcjonalne `proxy_url` per site w config
+- Registry: tylko `wikipedia.pl` (+ stub `example`)
+- JS: `app/resource/scraper/js/wikipedia.pl/`
+- Prod: `compose.prod.yaml` — osobny serwis `scraper`, `xvfb`, mount `./app/resource`
+
+---
+
+## Auth / e-mail
+
+- Login bez weryfikacji → `"Email not verified"`
+- Maile w MailHog: `http://localhost:8080/mailhog/`
+- Szablony HTML: `internal/service/mailer/template_builder.go`
+
+Flow testowy: register → mailhog → verify-email → login → subscribe (example) → filtry.
+
+---
+
+## Lint / test / build
+
+| Akcja | Komenda (w kontenerze `app`) |
+|-------|------------------------------|
+| Build API | `make api` |
+| Build all | `make build` — **może failować** bez `cmd/notify/main.go` (TODO) |
+| Vet | `go vet ./...` |
+| Testy | `go test ./internal/...` — część testów browser/mailer wymaga sieci lub MailHog; znane flaky na `main` |
+
+Frontend: brak skryptów `lint`/`test` w package.json — `npx eslint .`, `npx vitest run`, `npm run build` w kontenerze frontend.
+
+---
+
+## Czego NIE dodawać bez prośby
+
+- Kod z **innej domeny biznesowej** prywatnego repozytorium źródłowego
+- Grafana, Loki, observability stack
+- Produkcja PSP (Stripe, PayU, …) — jest tylko **example payment**
+- `cmd/notify` — planowany, jeszcze nie zaimplementowany
+
+---
+
+## Sync z projektem prywatnym
+
+Przy aktualizacjach z repozytorium źródłowego autora:
+
+1. Identyfikuj moduły **generyczne** (browser, cache, API, orders, mail) vs **domenowe**
+2. Kopiuj generyczne z zamianą module path i nazw modeli Wikipedia
+3. Uruchom `go build ./...` po każdej większej porcji
+4. Osobne commity: infra / domena Wikipedia / frontend
+5. Nie commituj `config.json`, `.env`, `go.sum` (gitignored)
+
+Ostatni duży sync (2026-07): browser pool, proxy, mail templates, API container + Redis, subskrypcje + example payment.

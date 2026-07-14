@@ -13,36 +13,36 @@ func TestBrowserPoolUsesPerSiteProxy(t *testing.T) {
 		},
 	}
 	sites := []*config.SiteConfig{
-		{Name: "otomoto", Enabled: true},
-		{Name: "autoplac", Enabled: true, ProxyURL: "socks5://127.0.0.1:1080"},
-		{Name: "olx", Enabled: true, ProxyURL: "socks5://127.0.0.1:1080"},
+		{Name: "wikipedia.pl", Enabled: true},
+		{Name: "example", Enabled: true, ProxyURL: "socks5://127.0.0.1:1080"},
+		{Name: "wikipedia.en", Enabled: true, ProxyURL: "socks5://127.0.0.1:1080"},
 	}
 
 	pool := NewBrowserPool(settings, sites, &testutils.MockLogger{})
-	otomotoBrowser := pool.GetForSite(sites[0])
-	autoplacBrowser := pool.GetForSite(sites[1])
-	olxBrowser := pool.GetForSite(sites[2])
+	wikipediaBrowser := pool.GetForSite(sites[0])
+	proxiedExampleBrowser := pool.GetForSite(sites[1])
+	proxiedEnBrowser := pool.GetForSite(sites[2])
 
-	if otomotoBrowser == autoplacBrowser {
-		t.Fatal("expected otomoto to use a different browser than autoplac")
+	if wikipediaBrowser == proxiedExampleBrowser {
+		t.Fatal("expected wikipedia.pl to use a different browser than proxied example site")
 	}
-	if autoplacBrowser != olxBrowser {
-		t.Fatal("expected autoplac and olx to share the same browser for the same proxy")
+	if proxiedExampleBrowser != proxiedEnBrowser {
+		t.Fatal("expected proxied sites to share the same browser for the same proxy")
 	}
 
-	otomotoImpl, ok := otomotoBrowser.(*Browser)
+	wikipediaImpl, ok := wikipediaBrowser.(*Browser)
 	if !ok {
-		t.Fatalf("unexpected browser type %T", otomotoBrowser)
+		t.Fatalf("unexpected browser type %T", wikipediaBrowser)
 	}
-	autoplacImpl, ok := autoplacBrowser.(*Browser)
+	proxiedImpl, ok := proxiedExampleBrowser.(*Browser)
 	if !ok {
-		t.Fatalf("unexpected browser type %T", autoplacBrowser)
+		t.Fatalf("unexpected browser type %T", proxiedExampleBrowser)
 	}
-	if otomotoImpl.proxyURL != "" {
-		t.Fatalf("expected empty proxy for otomoto, got %q", otomotoImpl.proxyURL)
+	if wikipediaImpl.proxyURL != "" {
+		t.Fatalf("expected empty proxy for wikipedia.pl, got %q", wikipediaImpl.proxyURL)
 	}
-	if autoplacImpl.proxyURL != "socks5://127.0.0.1:1080" {
-		t.Fatalf("expected autoplac proxy, got %q", autoplacImpl.proxyURL)
+	if proxiedImpl.proxyURL != "socks5://127.0.0.1:1080" {
+		t.Fatalf("expected proxied site proxy, got %q", proxiedImpl.proxyURL)
 	}
 }
 
@@ -51,7 +51,7 @@ func TestSingleBrowserProvider(t *testing.T) {
 	browserInstance := NewBrowser(settings, &testutils.MockLogger{})
 	provider := &SingleBrowserProvider{Browser: browserInstance}
 
-	if provider.GetForSite(&config.SiteConfig{Name: "autoplac", ProxyURL: "socks5://127.0.0.1:1080"}) != browserInstance {
+	if provider.GetForSite(&config.SiteConfig{Name: "wikipedia.pl", ProxyURL: "socks5://127.0.0.1:1080"}) != browserInstance {
 		t.Fatal("expected single browser provider to always return the same browser")
 	}
 }
